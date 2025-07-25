@@ -7,8 +7,12 @@
     "build": "next build",
     "start": "next start",
     "lint": "next lint",
-    "postinstall": "pnpm approve-builds || true",
     "clean": "rm -rf .next out"
+  },
+  "pnpm": {
+    "allowedDeprecatedVersions": {
+      "*": "*"
+    }
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.52.1",

@@ -1,0 +1,5 @@
+{
+  "installCommand": "pnpm install --ignore-scripts && pnpm rebuild sharp @tailwindcss/oxide unrs-resolver",
+  "buildCommand": "pnpm run build",
+  "framework": "nextjs"
+} 

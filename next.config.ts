@@ -8,7 +8,7 @@ const nextConfig: NextConfig = {
     ignoreBuildErrors: false,
   },
   experimental: {
-    optimizeCss: true,
+    // optimizeCss: true, // Disabled to avoid critters dependency issue
   },
   images: {
     domains: ['vercel.com'],
@@ -20,7 +20,6 @@ const nextConfig: NextConfig = {
   poweredByHeader: false,
   generateEtags: false,
   compress: true,
-  swcMinify: true,
   reactStrictMode: true,
   trailingSlash: false,
   env: {
