@@ -1,18 +1,4 @@
 {
-  "version": 2,
-  "env": {
-    "NODE_ENV": "production"
-  },
-  "build": {
-    "env": {
-      "SKIP_ENV_VALIDATION": "1"
-    }
-  },
-  "functions": {
-    "app/api/**/*.ts": {
-      "maxDuration": 30
-    }
-  },
-  "regions": ["iad1"],
-  "framework": "nextjs"
+  "framework": "nextjs",
+  "regions": ["iad1"]
 } 
