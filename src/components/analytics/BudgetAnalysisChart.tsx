@@ -8,6 +8,17 @@ interface BudgetAnalysisChartProps {
 }
 
 export default function BudgetAnalysisChart({ jobs }: BudgetAnalysisChartProps) {
+  // Debug: Check what data we're working with
+  console.log('=== BUDGET CHART DEBUG ===')
+  console.log('Total jobs:', jobs.length)
+  console.log('Sample budget data:', jobs.slice(0, 5).map(job => ({
+    id: job.id,
+    budget_amount: job.budget_amount,
+    budget_type: job.budget_type,
+    client_total_spent: job.client_total_spent,
+    client_avg_hourly_rate: job.client_avg_hourly_rate
+  })))
+
   // Process budget data with proper range handling
   const budgetData = jobs.reduce((acc, job) => {
     if (job.budget_amount && job.budget_type) {
@@ -24,6 +35,8 @@ export default function BudgetAnalysisChart({ jobs }: BudgetAnalysisChartProps) 
         const maxValue = parseFloat(rangeMatch[2].replace(/,/g, ''))
         const avgValue = (minValue + maxValue) / 2
         
+        console.log(`Processing range: ${amount} -> min: ${minValue}, max: ${maxValue}, avg: ${avgValue}, type: ${type}`)
+        
         if (type.includes('hourly')) {
           acc.hourly.push(avgValue)
         } else if (type.includes('fixed')) {
@@ -33,15 +46,28 @@ export default function BudgetAnalysisChart({ jobs }: BudgetAnalysisChartProps) 
         // Single value
         const numericValue = parseFloat(singleMatch[1].replace(/,/g, ''))
         
+        console.log(`Processing single: ${amount} -> value: ${numericValue}, type: ${type}`)
+        
         if (type.includes('hourly')) {
           acc.hourly.push(numericValue)
         } else if (type.includes('fixed')) {
           acc.fixed.push(numericValue)
         }
+      } else {
+        console.log(`Could not parse budget_amount: "${amount}" with type: "${type}"`)
       }
     }
     return acc
   }, { hourly: [] as number[], fixed: [] as number[] })
+
+  console.log('Final budget data:', {
+    hourly: budgetData.hourly,
+    fixed: budgetData.fixed,
+    hourlyCount: budgetData.hourly.length,
+    fixedCount: budgetData.fixed.length,
+    hourlyMin: budgetData.hourly.length > 0 ? Math.min(...budgetData.hourly) : 0,
+    hourlyMax: budgetData.hourly.length > 0 ? Math.max(...budgetData.hourly) : 0
+  })
 
   // Create meaningful budget ranges
   const createBudgetRanges = (values: number[], type: string) => {
