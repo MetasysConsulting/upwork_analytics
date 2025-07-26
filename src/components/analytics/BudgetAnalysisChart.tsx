@@ -8,16 +8,8 @@ interface BudgetAnalysisChartProps {
 }
 
 export default function BudgetAnalysisChart({ jobs }: BudgetAnalysisChartProps) {
-  // Debug: Check what data we're working with
-  console.log('=== BUDGET CHART DEBUG ===')
-  console.log('Total jobs:', jobs.length)
-  console.log('Sample budget data:', jobs.slice(0, 5).map(job => ({
-    id: job.id,
-    budget_amount: job.budget_amount,
-    budget_type: job.budget_type,
-    client_total_spent: job.client_total_spent,
-    client_avg_hourly_rate: job.client_avg_hourly_rate
-  })))
+  // Debug: Basic info
+  console.log('Budget Chart - Processing', jobs.length, 'jobs')
 
   // Process budget data with proper range handling
   const budgetData = jobs.reduce((acc, job) => {
@@ -25,6 +17,12 @@ export default function BudgetAnalysisChart({ jobs }: BudgetAnalysisChartProps) 
       const amount = job.budget_amount
       const type = job.budget_type.toLowerCase()
       
+      // Skip non-USD currencies (TL, EUR, etc.)
+      if (amount.includes('TL') || amount.includes('EUR') || amount.includes('£') || amount.includes('€')) {
+        console.log(`Skipping non-USD currency: "${amount}"`)
+        return acc
+      }
+
       // Handle ranges like "$28.00 - $56.00" or single values like "$100"
       const rangeMatch = amount.match(/\$?([\d,]+\.?\d*)\s*-\s*\$?([\d,]+\.?\d*)/)
       const singleMatch = amount.match(/\$?([\d,]+\.?\d*)/)
@@ -35,10 +33,13 @@ export default function BudgetAnalysisChart({ jobs }: BudgetAnalysisChartProps) 
         const maxValue = parseFloat(rangeMatch[2].replace(/,/g, ''))
         const avgValue = (minValue + maxValue) / 2
         
-        console.log(`Processing range: ${amount} -> min: ${minValue}, max: ${maxValue}, avg: ${avgValue}, type: ${type}`)
-        
         if (type.includes('hourly')) {
-          acc.hourly.push(avgValue)
+          // Sanity check: exclude obviously wrong hourly rates (likely mislabeled fixed budgets)
+          if (avgValue <= 500) {
+            acc.hourly.push(avgValue)
+          } else {
+            console.log(`❌ Excluding suspicious hourly rate: $${avgValue}/hr from "${amount}"`)
+          }
         } else if (type.includes('fixed')) {
           acc.fixed.push(avgValue)
         }
@@ -46,10 +47,13 @@ export default function BudgetAnalysisChart({ jobs }: BudgetAnalysisChartProps) 
         // Single value
         const numericValue = parseFloat(singleMatch[1].replace(/,/g, ''))
         
-        console.log(`Processing single: ${amount} -> value: ${numericValue}, type: ${type}`)
-        
         if (type.includes('hourly')) {
-          acc.hourly.push(numericValue)
+          // Sanity check: exclude obviously wrong hourly rates (likely mislabeled fixed budgets)
+          if (numericValue <= 500) {
+            acc.hourly.push(numericValue)
+          } else {
+            console.log(`❌ Excluding suspicious hourly rate: $${numericValue}/hr from "${amount}"`)
+          }
         } else if (type.includes('fixed')) {
           acc.fixed.push(numericValue)
         }
@@ -60,13 +64,11 @@ export default function BudgetAnalysisChart({ jobs }: BudgetAnalysisChartProps) 
     return acc
   }, { hourly: [] as number[], fixed: [] as number[] })
 
-  console.log('Final budget data:', {
-    hourly: budgetData.hourly,
-    fixed: budgetData.fixed,
-    hourlyCount: budgetData.hourly.length,
-    fixedCount: budgetData.fixed.length,
-    hourlyMin: budgetData.hourly.length > 0 ? Math.min(...budgetData.hourly) : 0,
-    hourlyMax: budgetData.hourly.length > 0 ? Math.max(...budgetData.hourly) : 0
+  console.log('✅ Budget Chart Results:', {
+    hourlyJobs: budgetData.hourly.length,
+    fixedJobs: budgetData.fixed.length,
+    hourlyRange: budgetData.hourly.length > 0 ? 
+      `$${Math.min(...budgetData.hourly)}-$${Math.max(...budgetData.hourly)}/hr` : 'None'
   })
 
   // Create meaningful budget ranges
