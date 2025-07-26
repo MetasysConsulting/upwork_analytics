@@ -8,16 +8,30 @@ interface BudgetAnalysisChartProps {
 }
 
 export default function BudgetAnalysisChart({ jobs }: BudgetAnalysisChartProps) {
-  // Process budget data
+  // Process budget data with proper range handling
   const budgetData = jobs.reduce((acc, job) => {
     if (job.budget_amount && job.budget_type) {
       const amount = job.budget_amount
       const type = job.budget_type.toLowerCase()
       
-      // Extract numeric value from budget string
-      const numericMatch = amount.match(/\$?([\d,]+)/)
-      if (numericMatch) {
-        const numericValue = parseFloat(numericMatch[1].replace(/,/g, ''))
+      // Handle ranges like "$28.00 - $56.00" or single values like "$100"
+      const rangeMatch = amount.match(/\$?([\d,]+\.?\d*)\s*-\s*\$?([\d,]+\.?\d*)/)
+      const singleMatch = amount.match(/\$?([\d,]+\.?\d*)/)
+      
+      if (rangeMatch) {
+        // Range: take the minimum value for categorization
+        const minValue = parseFloat(rangeMatch[1].replace(/,/g, ''))
+        const maxValue = parseFloat(rangeMatch[2].replace(/,/g, ''))
+        const avgValue = (minValue + maxValue) / 2
+        
+        if (type.includes('hourly')) {
+          acc.hourly.push(avgValue)
+        } else if (type.includes('fixed')) {
+          acc.fixed.push(avgValue)
+        }
+      } else if (singleMatch) {
+        // Single value
+        const numericValue = parseFloat(singleMatch[1].replace(/,/g, ''))
         
         if (type.includes('hourly')) {
           acc.hourly.push(numericValue)
@@ -29,30 +43,22 @@ export default function BudgetAnalysisChart({ jobs }: BudgetAnalysisChartProps) 
     return acc
   }, { hourly: [] as number[], fixed: [] as number[] })
 
-  // Create budget ranges
+  // Create meaningful budget ranges
   const createBudgetRanges = (values: number[], type: string) => {
     if (values.length === 0) return []
     
     const max = Math.max(...values)
     const min = Math.min(...values)
-    const range = max - min
-    const bucketSize = range / 5
+    const totalJobs = values.length
     
-    const ranges = []
-    for (let i = 0; i < 5; i++) {
-      const start = min + (i * bucketSize)
-      const end = min + ((i + 1) * bucketSize)
-      const count = values.filter(v => v >= start && v < end).length
-      
-      if (count > 0) {
-        ranges.push({
-          name: `${type}: $${start.toFixed(0)}-${end.toFixed(0)}`,
-          value: count
-        })
-      }
-    }
+    // Create a single consolidated range for the chart
+    const suffix = type.toLowerCase() === 'hourly' ? '/hr' : ''
+    const rangeName = `${type}: $${min.toFixed(0)}-$${max.toFixed(0)}${suffix}`
     
-    return ranges
+    return [{
+      name: rangeName,
+      value: totalJobs
+    }]
   }
 
   const hourlyRanges = createBudgetRanges(budgetData.hourly, 'Hourly')
