@@ -8,61 +8,115 @@ interface ClientCountriesChartProps {
 }
 
 export default function ClientCountriesChart({ jobs }: ClientCountriesChartProps) {
-  // Process client countries data with more details
-  const countryData = jobs.reduce((acc, job) => {
-    const country = job.client_location || 'Worldwide'
-    if (!acc[country]) {
-      acc[country] = {
-        count: 0,
-        totalBudget: 0,
-        avgBudget: 0,
-        jobs: []
+  // Extract and count client locations
+  const locationCounts: Record<string, number> = {}
+  
+  jobs.forEach(job => {
+    if (job.client_location) {
+      const location = job.client_location.trim()
+      if (location && location !== 'Unknown' && location !== '') {
+        locationCounts[location] = (locationCounts[location] || 0) + 1
       }
     }
-    acc[country].count += 1
-    acc[country].jobs.push(job)
-    
-    // Calculate budget info
-    if (job.budget_amount) {
-      const budgetMatch = job.budget_amount.match(/\$?([\d.]+)/)
-      if (budgetMatch) {
-        const budget = parseFloat(budgetMatch[1])
-        acc[country].totalBudget += budget
-        acc[country].avgBudget = acc[country].totalBudget / acc[country].count
-      }
-    }
-    
-    return acc
-  }, {} as Record<string, any>)
+  })
 
-  // Sort by job count and take top 12 for better visibility
-  const topCountries = Object.entries(countryData)
-    .sort(([,a], [,b]) => b.count - a.count)
-    .slice(0, 12)
-    .map(([country, data]) => ({
-      country: country.length > 20 ? country.substring(0, 20) + '...' : country,
-      fullCountry: country,
-      count: data.count,
-      avgBudget: data.avgBudget,
-      percentage: ((data.count / jobs.length) * 100).toFixed(1)
+  // Sort by count and get top countries
+  const countryData = Object.entries(locationCounts)
+    .map(([country, count]) => ({
+      country,
+      count,
+      percentage: ((count / jobs.length) * 100).toFixed(1)
     }))
+    .sort((a, b) => b.count - a.count)
+    .slice(0, 12) // Top 12 countries
 
-  const maxJobs = Math.max(...topCountries.map(item => item.count))
+  if (countryData.length === 0) {
+    return (
+      <div style={{ 
+        textAlign: 'center', 
+        padding: '60px',
+        background: 'linear-gradient(135deg, rgba(15, 15, 35, 0.8) 0%, rgba(90, 30, 60, 0.8) 100%)',
+        borderRadius: '16px',
+        border: '1px solid rgba(255, 255, 255, 0.1)',
+        color: '#ffffff'
+      }}>
+        <h3 style={{ color: '#FF6B6B' }}>No client location data available</h3>
+      </div>
+    )
+  }
+
+  // Vibrant colors for countries
+  const colors = [
+    '#FF6B6B', '#4ECDC4', '#45B7D1', '#96CEB4', '#FECA57', 
+    '#FF9FF3', '#54A0FF', '#5F27CD', '#00D2D3', '#FF9F43',
+    '#6C5CE7', '#FD79A8'
+  ]
+
+  // Map countries to flag emojis
+  const countryFlags: Record<string, string> = {
+    'United States': '🇺🇸',
+    'United States of America': '🇺🇸',
+    'USA': '🇺🇸',
+    'United Kingdom': '🇬🇧',
+    'UK': '🇬🇧',
+    'Canada': '🇨🇦',
+    'Australia': '🇦🇺',
+    'Germany': '🇩🇪',
+    'France': '🇫🇷',
+    'Netherlands': '🇳🇱',
+    'India': '🇮🇳',
+    'Brazil': '🇧🇷',
+    'Italy': '🇮🇹',
+    'Spain': '🇪🇸',
+    'Sweden': '🇸🇪',
+    'Norway': '🇳🇴',
+    'Denmark': '🇩🇰',
+    'Switzerland': '🇨🇭',
+    'Poland': '🇵🇱',
+    'Israel': '🇮🇱',
+    'Singapore': '🇸🇬',
+    'Japan': '🇯🇵',
+    'South Korea': '🇰🇷',
+    'China': '🇨🇳',
+    'Mexico': '🇲🇽',
+    'Argentina': '🇦🇷',
+    'Chile': '🇨🇱',
+    'Colombia': '🇨🇴',
+    'South Africa': '🇿🇦',
+    'Nigeria': '🇳🇬',
+    'Kenya': '🇰🇪',
+    'UAE': '🇦🇪',
+    'United Arab Emirates': '🇦🇪',
+    'Saudi Arabia': '🇸🇦',
+    'Turkey': '🇹🇷',
+    'Russia': '🇷🇺',
+    'Ukraine': '🇺🇦',
+    'Pakistan': '🇵🇰',
+    'Bangladesh': '🇧🇩',
+    'Philippines': '🇵🇭',
+    'Indonesia': '🇮🇩',
+    'Thailand': '🇹🇭',
+    'Vietnam': '🇻🇳',
+    'Malaysia': '🇲🇾',
+    'New Zealand': '🇳🇿'
+  }
 
   const option = {
+    backgroundColor: '#0a0e1a',
     title: {
-      text: 'Top Client Countries',
-      subtext: `Distribution of ${jobs.length} jobs across ${Object.keys(countryData).length} countries`,
+      text: '🌍 Global Client Distribution',
+      subtext: `Geographic analysis from ${jobs.length} jobs across ${countryData.length} countries`,
       left: 'center',
       top: '3%',
       textStyle: {
-        fontSize: 24,
+        fontSize: 28,
         fontWeight: 'bold',
         color: '#ffffff'
       },
       subtextStyle: {
-        color: 'rgba(255, 255, 255, 0.7)',
-        fontSize: 14
+        color: 'rgba(255, 255, 255, 0.8)',
+        fontSize: 16,
+        fontWeight: '500'
       }
     },
     tooltip: {
@@ -70,125 +124,132 @@ export default function ClientCountriesChart({ jobs }: ClientCountriesChartProps
       axisPointer: {
         type: 'shadow',
         shadowStyle: {
-          color: 'rgba(62, 207, 142, 0.1)'
+          color: 'rgba(72, 187, 120, 0.1)'
         }
       },
       backgroundColor: 'rgba(15, 15, 35, 0.95)',
-      borderColor: 'rgba(62, 207, 142, 0.3)',
-      borderWidth: 2,
+      borderColor: 'rgba(72, 187, 120, 0.3)',
+      borderWidth: 1,
       textStyle: {
         color: '#ffffff',
-        fontSize: 13
+        fontSize: 14
       },
       formatter: function(params: any) {
-        const data = params[0]
-        const item = topCountries[data.dataIndex]
+        const data = params.data
+        const percentage = ((data.value / jobs.length) * 100).toFixed(1)
         return `
-          <div style="padding: 8px;">
-            <strong style="color: #3ecf8e;">${item.fullCountry}</strong><br/>
-            <span style="color: #60a5fa;">📊 Jobs:</span> ${data.value} (${item.percentage}%)<br/>
-            <span style="color: #f59e0b;">💰 Avg Budget:</span> $${item.avgBudget ? item.avgBudget.toFixed(0) : 'N/A'}<br/>
-            <span style="color: #8b5cf6;">🎯 Market Share:</span> ${item.percentage}% of total jobs
+          <div style="padding: 15px; border-radius: 8px; background: linear-gradient(135deg, ${data.itemStyle.color}15, ${data.itemStyle.color}05);">
+            <div style="text-align: center; margin-bottom: 10px;">
+              <span style="font-size: 24px;">${data.flag}</span>
+            </div>
+            <strong style="color: ${data.itemStyle.color}; font-size: 16px; display: block; margin-bottom: 10px;">${data.name}</strong>
+            <div style="margin: 8px 0;">
+              <span style="color: #4ECDC4;">🏢 Jobs:</span> <span style="color: #ffffff; font-weight: bold;">${data.value}</span>
+            </div>
+            <div style="margin: 8px 0;">
+              <span style="color: #FF6B6B;">🌍 Market Share:</span> <span style="color: #ffffff; font-weight: bold;">${percentage}%</span>
+            </div>
           </div>
         `
       }
     },
     grid: {
-      left: '15%',
+      left: '25%',
       right: '8%',
+      bottom: '10%',
       top: '18%',
-      bottom: '12%',
       containLabel: true
     },
     xAxis: {
       type: 'value',
       name: 'Number of Jobs',
       nameLocation: 'middle',
-      nameGap: 35,
+      nameGap: 30,
       nameTextStyle: {
         color: '#ffffff',
         fontSize: 14,
         fontWeight: 'bold'
       },
-      max: Math.ceil(maxJobs * 1.1),
       axisLabel: {
         color: '#ffffff',
-        fontSize: 12
+        fontSize: 12,
+        fontWeight: '500'
       },
       axisLine: {
         lineStyle: {
-          color: 'rgba(255, 255, 255, 0.3)'
+          color: 'rgba(255, 255, 255, 0.2)',
+          width: 1
         }
       },
       splitLine: {
         lineStyle: {
-          color: 'rgba(255, 255, 255, 0.1)'
+          color: 'rgba(255, 255, 255, 0.1)',
+          type: 'dashed'
         }
       }
     },
     yAxis: {
       type: 'category',
-      data: topCountries.map(item => item.country),
+      data: countryData.map(country => {
+        const flag = countryFlags[country.country] || '🌍'
+        return `${flag} ${country.country}`
+      }),
       axisLabel: {
-        fontSize: 13,
         color: '#ffffff',
-        fontWeight: '500'
+        fontSize: 13,
+        fontWeight: 'bold',
+        width: 120,
+        overflow: 'truncate'
       },
       axisLine: {
         lineStyle: {
-          color: 'rgba(255, 255, 255, 0.3)'
+          color: 'rgba(255, 255, 255, 0.2)',
+          width: 1
         }
       },
       axisTick: {
         lineStyle: {
-          color: 'rgba(255, 255, 255, 0.3)'
+          color: 'rgba(255, 255, 255, 0.2)'
         }
       }
     },
     series: [
       {
-        name: 'Jobs by Country',
+        name: 'Job Distribution',
         type: 'bar',
-        data: topCountries.map((item, index) => ({
-          value: item.count,
+        data: countryData.map((country, index) => ({
+          value: country.count,
+          name: country.country,
+          flag: countryFlags[country.country] || '🌍',
           itemStyle: {
-            borderRadius: [0, 6, 6, 0],
-            shadowBlur: 8,
-            shadowColor: 'rgba(0, 0, 0, 0.3)'
+            color: {
+              type: 'linear',
+              x: 0,
+              y: 0,
+              x2: 1,
+              y2: 0,
+              colorStops: [
+                {
+                  offset: 0,
+                  color: colors[index % colors.length]
+                },
+                {
+                  offset: 0.5,
+                  color: colors[index % colors.length] + 'CC'
+                },
+                {
+                  offset: 1,
+                  color: colors[index % colors.length] + '88'
+                }
+              ]
+            },
+            borderRadius: [0, 8, 8, 0]
           }
         })),
-        itemStyle: {
-          color: function(params: any) {
-            // Gradient colors based on performance
-            const colors = [
-              '#3ecf8e', // Primary accent green
-              '#60a5fa', // Blue
-              '#f59e0b', // Orange  
-              '#8b5cf6', // Purple
-              '#ef4444', // Red
-              '#06b6d4', // Cyan
-              '#84cc16', // Lime
-              '#f97316', // Orange-red
-              '#ec4899', // Pink
-              '#6366f1', // Indigo
-              '#10b981', // Emerald
-              '#f59e0b'  // Amber
-            ]
-            return colors[params.dataIndex % colors.length]
-          },
-          borderRadius: [0, 6, 6, 0],
-          shadowBlur: 8,
-          shadowColor: 'rgba(0, 0, 0, 0.3)'
-        },
         emphasis: {
           itemStyle: {
-            shadowBlur: 15,
-            shadowOffsetX: 2,
-            shadowColor: 'rgba(62, 207, 142, 0.4)',
-            borderColor: 'rgba(255, 255, 255, 0.5)',
-            borderWidth: 2
-          },
-          scale: 1.05
+            scale: 1.05
+          }
         },
         label: {
           show: true,
@@ -197,91 +258,99 @@ export default function ClientCountriesChart({ jobs }: ClientCountriesChartProps
           fontSize: 12,
           fontWeight: 'bold',
           formatter: function(params: any) {
-            const item = topCountries[params.dataIndex]
-            return `${params.value} (${item.percentage}%)`
+            const percentage = ((params.value / jobs.length) * 100).toFixed(1)
+            return `${params.value} (${percentage}%)`
           }
         },
-        barMaxWidth: 35
+        barMaxWidth: 30
       }
     ],
     animation: true,
-    animationDuration: 1000,
-    animationEasing: 'cubicOut'
+    animationDuration: 2000,
+    animationEasing: 'elasticOut',
+    animationDelay: function (idx: number) {
+      return idx * 120
+    }
   }
 
   return (
-    <div className="space-y-6">
-      <div className="text-center">
-        <h3 className="section-header">Global Client Distribution</h3>
-        <p className="section-subtitle">Discover where your highest-value clients are located worldwide</p>
-      </div>
-
-      {/* Chart Container */}
-      <div className="chart-container">
-        <ReactECharts 
-          option={option} 
-          style={{ height: '700px', width: '100%' }}
-          opts={{ renderer: 'canvas' }}
-        />
-      </div>
-
-      {/* Market Insights */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-        <div className="clean-card p-6">
-          <h4 className="text-lg font-semibold text-accent mb-4">🌍 Market Distribution</h4>
-          <div className="space-y-3 text-sm">
-            <div className="flex justify-between items-center">
-              <span className="text-secondary">Top Market:</span>
-              <span className="text-accent font-semibold">{topCountries[0]?.fullCountry}</span>
-            </div>
-            <div className="flex justify-between items-center">
-              <span className="text-secondary">Market Share:</span>
-              <span className="text-secondary">{topCountries[0]?.percentage}%</span>
-            </div>
-            <div className="flex justify-between items-center">
-              <span className="text-secondary">Total Countries:</span>
-              <span className="text-secondary">{Object.keys(countryData).length}</span>
-            </div>
-            <div className="flex justify-between items-center">
-              <span className="text-secondary">Top 3 Markets:</span>
-              <span className="text-secondary">{topCountries.slice(0, 3).reduce((sum, c) => sum + parseFloat(c.percentage), 0).toFixed(1)}%</span>
-            </div>
-          </div>
+    <div style={{ 
+      textAlign: 'center',
+      background: 'linear-gradient(135deg, rgba(15, 15, 35, 0.8) 0%, rgba(90, 30, 60, 0.8) 100%)',
+      borderRadius: '16px',
+      padding: '24px',
+      margin: '16px 0',
+      border: '1px solid rgba(255, 255, 255, 0.1)',
+      boxShadow: '0 20px 40px rgba(255, 107, 107, 0.2)'
+    }}>
+      <ReactECharts 
+        option={option} 
+        style={{ height: '700px', width: '100%' }}
+        opts={{ renderer: 'canvas' }}
+      />
+      
+      <div style={{ 
+        display: 'flex', 
+        gap: '16px', 
+        marginTop: '24px',
+        flexWrap: 'wrap',
+        justifyContent: 'center'
+      }}>
+        <div style={{ 
+          flex: 1,
+          minWidth: '300px',
+          padding: '20px',
+          background: 'rgba(255, 107, 107, 0.1)',
+          borderRadius: '12px',
+          border: '1px solid rgba(255, 107, 107, 0.3)',
+          backdropFilter: 'blur(10px)'
+        }}>
+          <h4 style={{ 
+            color: '#FF6B6B', 
+            marginBottom: '12px',
+            fontSize: '16px',
+            fontWeight: 'bold'
+          }}>
+            🌍 Market Intelligence
+          </h4>
+          <p style={{ 
+            color: 'rgba(255, 255, 255, 0.9)', 
+            lineHeight: '1.6',
+            fontSize: '13px',
+            margin: 0
+          }}>
+            Identify high-opportunity geographic markets and understand regional client distribution patterns. 
+            Target regions with strong client presence for maximum proposal success rates.
+          </p>
         </div>
-
-        <div className="clean-card p-6">
-          <h4 className="text-lg font-semibold text-accent mb-4">💰 Budget Insights</h4>
-          <div className="space-y-3 text-sm">
-            {topCountries.slice(0, 4).map((country, index) => (
-              <div key={country.fullCountry} className="flex justify-between items-center">
-                <span className="text-secondary">{country.country}:</span>
-                <span className="text-secondary">
-                  ${country.avgBudget ? country.avgBudget.toFixed(0) : 'N/A'} avg
-                </span>
-              </div>
-            ))}
-          </div>
+        
+        <div style={{ 
+          flex: 1,
+          minWidth: '300px',
+          padding: '20px',
+          background: 'rgba(78, 205, 196, 0.1)',
+          borderRadius: '12px',
+          border: '1px solid rgba(78, 205, 196, 0.3)',
+          backdropFilter: 'blur(10px)'
+        }}>
+          <h4 style={{ 
+            color: '#4ECDC4', 
+            marginBottom: '12px',
+            fontSize: '16px',
+            fontWeight: 'bold'
+          }}>
+            🎯 Geographic Strategy
+          </h4>
+          <p style={{ 
+            color: 'rgba(255, 255, 255, 0.9)', 
+            lineHeight: '1.6',
+            fontSize: '13px',
+            margin: 0
+          }}>
+            Leverage geographic insights to tailor your services, adjust pricing for regional markets, 
+            and build specialized expertise in dominant client regions for competitive advantage.
+          </p>
         </div>
-
-        <div className="clean-card p-6">
-          <h4 className="text-lg font-semibold text-accent mb-4">🎯 Strategy Tips</h4>
-          <div className="space-y-3 text-sm text-muted">
-            <p>• Focus on the top 3 markets for 60%+ of opportunities</p>
-            <p>• Consider timezone overlap for better client communication</p>
-            <p>• Research local business customs and payment preferences</p>
-            <p>• Build case studies from successful projects in key markets</p>
-          </div>
-        </div>
-      </div>
-
-      {/* Chart Explanation */}
-      <div className="chart-explanation" style={{ maxWidth: '800px', margin: '0 auto' }}>
-        <h4>🌍 Understanding Global Client Distribution</h4>
-        <p>
-          This chart shows where your highest-opportunity clients are located geographically. 
-          Focus your marketing and outreach efforts on the top markets, but don't overlook 
-          emerging opportunities in smaller markets that might have less competition.
-        </p>
       </div>
     </div>
   )

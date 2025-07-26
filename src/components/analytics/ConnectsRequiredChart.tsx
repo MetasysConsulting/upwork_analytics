@@ -8,97 +8,266 @@ interface ConnectsRequiredChartProps {
 }
 
 export default function ConnectsRequiredChart({ jobs }: ConnectsRequiredChartProps) {
-  // Process connects required data
+  // Extract connects data
   const connectsData = jobs
-    .filter(job => job.connects_required)
     .map(job => {
-      const connectsMatch = job.connects_required?.match(/(\d+)/)
-      return connectsMatch ? parseInt(connectsMatch[1]) : 0
+      const connects = typeof job.connects_required === 'string' 
+        ? parseInt(job.connects_required) 
+        : job.connects_required
+      return connects && connects > 0 ? connects : null
     })
-    .filter(connects => connects > 0)
+    .filter(connects => connects !== null) as number[]
 
-  // Group connects into ranges
-  const connectsRanges = {
-    '1-5': 0,
-    '6-10': 0,
-    '11-15': 0,
-    '16-20': 0,
-    '21+': 0
+  if (connectsData.length === 0) {
+    return (
+      <div style={{ 
+        textAlign: 'center', 
+        padding: '60px',
+        background: 'linear-gradient(135deg, rgba(15, 15, 35, 0.8) 0%, rgba(245, 158, 11, 0.3) 100%)',
+        borderRadius: '16px',
+        border: '1px solid rgba(255, 255, 255, 0.1)',
+        color: '#ffffff'
+      }}>
+        <h3 style={{ color: '#F59E0B' }}>No connects data available</h3>
+      </div>
+    )
   }
 
-  connectsData.forEach(connects => {
-    if (connects <= 5) connectsRanges['1-5']++
-    else if (connects <= 10) connectsRanges['6-10']++
-    else if (connects <= 15) connectsRanges['11-15']++
-    else if (connects <= 20) connectsRanges['16-20']++
-    else connectsRanges['21+']++
-  })
+  // Define connect ranges
+  const connectRanges = [
+    { name: 'Low (1-5)', min: 1, max: 5, color: '#4ECDC4', icon: '🟢' },
+    { name: 'Medium (6-10)', min: 6, max: 10, color: '#FFB347', icon: '🟡' },
+    { name: 'High (11-15)', min: 11, max: 15, color: '#FF6B6B', icon: '🟠' },
+    { name: 'Very High (16-20)', min: 16, max: 20, color: '#A29BFE', icon: '🔴' },
+    { name: 'Premium (21+)', min: 21, max: Infinity, color: '#E67E22', icon: '💎' }
+  ]
 
-  const chartData = Object.entries(connectsRanges).map(([range, count]) => ({
-    range,
-    count
-  }))
+  // Count jobs in each range
+  const rangeCounts = connectRanges.map(range => {
+    const count = connectsData.filter(connects => 
+      connects >= range.min && connects < range.max
+    ).length
+    const percentage = ((count / connectsData.length) * 100)
+    return {
+      ...range,
+      count,
+      percentage
+    }
+  }).filter(range => range.count > 0)
 
   const option = {
+    backgroundColor: '#0a0e1a',
     title: {
-      text: 'Jobs by Connects Required',
+      text: '🔗 Connects Investment Analysis',
+      subtext: `Strategic analysis of ${connectsData.length} jobs requiring connects across ${rangeCounts.length} investment tiers`,
       left: 'center',
+      top: '3%',
       textStyle: {
-        fontSize: 16,
+        fontSize: 28,
         fontWeight: 'bold',
         color: '#ffffff'
+      },
+      subtextStyle: {
+        color: 'rgba(255, 255, 255, 0.8)',
+        fontSize: 16,
+        fontWeight: '500'
       }
     },
     tooltip: {
-      trigger: 'item',
-      formatter: '{a} <br/>{b}: {c} ({d}%)'
+      trigger: 'axis',
+      axisPointer: {
+        type: 'shadow',
+        shadowStyle: {
+          color: 'rgba(245, 158, 11, 0.1)'
+        }
+      },
+      backgroundColor: 'rgba(15, 15, 35, 0.95)',
+      borderColor: 'rgba(245, 158, 11, 0.3)',
+      borderWidth: 1,
+      textStyle: {
+        color: '#ffffff',
+        fontSize: 14
+      },
+      formatter: function(params: any) {
+        const data = params.data
+        const percentage = ((data.value / connectsData.length) * 100).toFixed(1)
+        return `
+          <div style="padding: 15px; border-radius: 8px; background: linear-gradient(135deg, ${data.itemStyle.color}15, ${data.itemStyle.color}05);">
+            <div style="text-align: center; margin-bottom: 10px;">
+              <span style="font-size: 24px;">${data.icon}</span>
+            </div>
+            <strong style="color: ${data.itemStyle.color}; font-size: 16px; display: block; margin-bottom: 10px;">${data.name}</strong>
+            <div style="margin: 8px 0;">
+              <span style="color: #4ECDC4;">💼 Jobs:</span> <span style="color: #ffffff; font-weight: bold;">${data.value}</span>
+            </div>
+            <div style="margin: 8px 0;">
+              <span style="color: #FF6B6B;">📊 Market Share:</span> <span style="color: #ffffff; font-weight: bold;">${percentage}%</span>
+            </div>
+          </div>
+        `
+      }
     },
-    legend: {
-      orient: 'vertical',
-      left: 'left',
-      top: 'middle'
+    grid: {
+      left: '25%',
+      right: '8%',
+      bottom: '10%',
+      top: '18%',
+      containLabel: true
+    },
+    xAxis: {
+      type: 'value',
+      name: 'Number of Jobs',
+      nameLocation: 'middle',
+      nameGap: 30,
+      nameTextStyle: {
+        color: '#ffffff',
+        fontSize: 14,
+        fontWeight: 'bold'
+      },
+      axisLabel: {
+        color: '#ffffff',
+        fontSize: 12,
+        fontWeight: '500'
+      },
+      axisLine: {
+        lineStyle: {
+          color: 'rgba(255, 255, 255, 0.2)',
+          width: 1
+        }
+      },
+      splitLine: {
+        lineStyle: {
+          color: 'rgba(255, 255, 255, 0.1)',
+          type: 'dashed'
+        }
+      }
+    },
+    yAxis: {
+      type: 'category',
+      data: rangeCounts.map(range => range.name.split(' (')[0]),
+      axisLabel: {
+        color: '#ffffff',
+        fontSize: 13,
+        fontWeight: 'bold',
+        width: 120,
+        overflow: 'truncate'
+      },
+      axisLine: {
+        lineStyle: {
+          color: 'rgba(255, 255, 255, 0.2)',
+          width: 1
+        }
+      },
+      axisTick: {
+        lineStyle: {
+          color: 'rgba(255, 255, 255, 0.2)'
+        }
+      }
     },
     series: [
       {
-        name: 'Connects Required',
-        type: 'pie',
-        radius: ['40%', '70%'],
-        center: ['60%', '50%'],
-        data: chartData.map(item => ({
-          name: `${item.range} connects`,
-          value: item.count
+        name: 'Investment Distribution',
+        type: 'bar',
+        data: rangeCounts.map((range, index) => ({
+          value: range.count,
+          name: range.name,
+          icon: range.icon,
+          itemStyle: {
+            color: {
+              type: 'linear',
+              x: 0,
+              y: 0,
+              x2: 1,
+              y2: 0,
+              colorStops: [
+                {
+                  offset: 0,
+                  color: range.color
+                },
+                {
+                  offset: 0.7,
+                  color: range.color + 'AA'
+                },
+                {
+                  offset: 1,
+                  color: range.color + '44'
+                }
+              ]
+            },
+            borderRadius: [0, 8, 8, 0]
+          }
         })),
         emphasis: {
           itemStyle: {
-            shadowBlur: 10,
-            shadowOffsetX: 0,
-            shadowColor: 'rgba(0, 0, 0, 0.5)'
+            scale: 1.05
           }
         },
         label: {
-          show: false
+          show: true,
+          position: 'right',
+          color: '#ffffff',
+          fontSize: 12,
+          fontWeight: 'bold',
+          formatter: function(params: any) {
+            const percentage = ((params.value / connectsData.length) * 100).toFixed(1)
+            return `${params.value} (${percentage}%)`
+          }
         },
-        labelLine: {
-          show: false
-        }
+        barMaxWidth: 30
       }
-    ]
+    ],
+    animation: true,
+    animationDuration: 2200,
+    animationEasing: 'bounceOut',
+    animationDelay: function (idx: number) {
+      return idx * 180
+    }
   }
 
   return (
-    <div style={{ textAlign: 'center' }}>
-      <div className="mb-8">
-        <h3 className="section-header">Jobs by Connects Required</h3>
-        <p className="section-subtitle">Distribution of jobs by required connects</p>
-      </div>
+    <div style={{ 
+      textAlign: 'center',
+      background: 'linear-gradient(135deg, rgba(15, 15, 35, 0.8) 0%, rgba(245, 158, 11, 0.2) 50%, rgba(139, 92, 246, 0.2) 100%)',
+      borderRadius: '16px',
+      padding: '24px',
+      margin: '16px 0',
+      border: '1px solid rgba(255, 255, 255, 0.1)',
+      boxShadow: '0 20px 40px rgba(245, 158, 11, 0.3)'
+    }}>
       <ReactECharts 
         option={option} 
-        style={{ height: '600px', margin: '0 auto' }}
+        style={{ height: '700px', width: '100%' }}
         opts={{ renderer: 'canvas' }}
       />
-      <div className="chart-explanation" style={{ maxWidth: '800px', margin: '0 auto', marginTop: '24px' }}>
-        <h4>🔗 What This Shows</h4>
-        <p>This chart shows how many connects are typically required for different jobs. Lower connect requirements often indicate less competitive positions, while higher requirements may signal premium opportunities.</p>
+      
+      <div style={{ 
+        maxWidth: '900px', 
+        margin: '24px auto 0', 
+        padding: '20px',
+        background: 'rgba(255, 255, 255, 0.05)',
+        borderRadius: '12px',
+        border: '1px solid rgba(245, 158, 11, 0.3)',
+        backdropFilter: 'blur(10px)'
+      }}>
+        <h4 style={{ 
+          color: '#F59E0B', 
+          marginBottom: '12px',
+          fontSize: '18px',
+          fontWeight: 'bold'
+        }}>
+          🚀 Connect Investment Strategy
+        </h4>
+        <p style={{ 
+          color: 'rgba(255, 255, 255, 0.9)', 
+          lineHeight: '1.7',
+          fontSize: '14px',
+          margin: 0
+        }}>
+          Master your connect allocation with this strategic analysis! Lower connect requirements often 
+          signal accessible opportunities with less competition, while higher investments may unlock 
+          premium projects. Balance your portfolio across investment tiers to maximize ROI and 
+          maintain sustainable application velocity in the competitive marketplace.
+        </p>
       </div>
     </div>
   )

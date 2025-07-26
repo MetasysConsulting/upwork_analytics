@@ -102,45 +102,53 @@ export default function AdvancedAnalytics() {
         display: 'grid', 
         gridTemplateColumns: 'repeat(auto-fit, minmax(600px, 1fr))', 
         gap: '24px',
-        width: '100%'
+        width: '100%',
+        maxWidth: '1400px',
+        margin: '0 auto',
+        justifyItems: 'center'
       }}>
-        <div className="chart-container">
+        <div className="chart-container" style={{ width: '100%', maxWidth: '700px' }}>
           <JobsOverTimeChart jobs={jobs} />
         </div>
-        <div className="chart-container">
+        <div className="chart-container" style={{ width: '100%', maxWidth: '700px' }}>
           <SkillsDemandChart jobs={jobs} />
         </div>
-        <div className="chart-container">
+        <div className="chart-container" style={{ width: '100%', maxWidth: '700px' }}>
           <BudgetAnalysisChart jobs={jobs} />
         </div>
-        <div className="chart-container">
+        <div className="chart-container" style={{ width: '100%', maxWidth: '700px' }}>
           <ClientActivityChart jobs={jobs} />
         </div>
-        <div className="chart-container">
+        <div className="chart-container" style={{ width: '100%', maxWidth: '700px' }}>
           <ClientCountriesChart jobs={jobs} />
         </div>
-        <div className="chart-container">
+        <div className="chart-container" style={{ width: '100%', maxWidth: '700px' }}>
           <ClientSpendingChart jobs={jobs} />
         </div>
-        <div className="chart-container">
-          <ClientHireRateChart jobs={jobs} />
-        </div>
-        <div className="chart-container">
+        <div className="chart-container" style={{ width: '100%', maxWidth: '700px' }}>
           <ConnectsRequiredChart jobs={jobs} />
         </div>
-        <div className="chart-container">
+        <div className="chart-container" style={{ width: '100%', maxWidth: '700px' }}>
           <InterviewingRateChart jobs={jobs} />
         </div>
-        <div style={{ gridColumn: '1 / -1' }}>
-          <div className="chart-container">
-            <ClientHourlyRateChart jobs={jobs} />
-          </div>
+        <div className="chart-container" style={{ width: '100%', maxWidth: '700px' }}>
+          <ClientHireRateChart jobs={jobs} />
         </div>
-        <div style={{ gridColumn: '1 / -1' }}>
-          <div className="chart-container">
-            <JobPostingHeatmap jobs={jobs} />
-          </div>
+        <div className="chart-container" style={{ width: '100%', maxWidth: '700px' }}>
+          <ClientHourlyRateChart jobs={jobs} />
         </div>
+        
+      </div>
+
+      {/* Full width heatmap - outside the grid to break free from maxWidth constraint */}
+      <div style={{ 
+        width: '100vw',
+        marginLeft: 'calc(-50vw + 50%)',
+        marginRight: 'calc(-50vw + 50%)',
+        marginTop: '32px',
+        marginBottom: '32px'
+      }}>
+        <JobPostingHeatmap jobs={jobs} />
       </div>
 
       {/* Insights Summary */}

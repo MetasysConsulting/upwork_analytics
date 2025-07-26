@@ -21,10 +21,10 @@ export interface ScrapedJob {
   id: number
   job_url: string
   job_id: string | null
-  created_at: string
+  created_at: string // When the job was extracted from Upwork
   updated_at: string
   title: string | null
-  posted_date: string | null
+  posted_date: string | null // Original posting date from Upwork (deprecated - use created_at for extraction date)
   location: string | null
   description: string | null
   budget_amount: string | null

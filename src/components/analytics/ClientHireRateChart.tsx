@@ -8,152 +8,108 @@ interface ClientHireRateChartProps {
 }
 
 export default function ClientHireRateChart({ jobs }: ClientHireRateChartProps) {
-  // Process client hire rate data with detailed analysis
-  const processHireRateData = () => {
-    console.log('Total jobs:', jobs.length)
-    
-    const jobsWithHireRate = jobs.filter(job => job.client_hire_rate)
-    console.log('Jobs with hire rate:', jobsWithHireRate.length)
-    
-    const hireRateData = jobsWithHireRate
-      .map(job => {
-        const rateMatch = job.client_hire_rate?.match(/(\d+(?:\.\d+)?)/)
-        const hireRate = rateMatch ? parseFloat(rateMatch[1]) : 0
-        console.log(`Job from ${job.client_location}: hire rate = ${job.client_hire_rate} -> parsed = ${hireRate}`)
-        return {
-          rate: hireRate,
-          job,
-          totalSpent: job.client_total_spent ? parseFloat(job.client_total_spent.replace(/[\$,]/g, '')) || 0 : 0,
-          totalHires: job.client_total_hires ? parseInt(job.client_total_hires.replace(/,/g, '')) || 0 : 0,
-          jobsPosted: job.client_jobs_posted ? parseInt(job.client_jobs_posted.replace(/,/g, '')) || 0 : 0
-        }
-      })
-      .filter(item => {
-        const isValid = item.rate > 0 && item.rate <= 100
-        console.log(`Client with rate ${item.rate}: valid = ${isValid}`)
-        return isValid
-      })
+  // Extract hire rate data
+  const hireRateData = jobs
+    .filter(job => job.client_hire_rate !== null && job.client_hire_rate !== undefined)
+    .map(job => ({
+      rate: typeof job.client_hire_rate === 'string' 
+        ? parseFloat(job.client_hire_rate) 
+        : job.client_hire_rate || 0
+    }))
 
-    console.log('Final processed hire rate data:', hireRateData.length, 'clients')
-    return hireRateData
+  if (hireRateData.length === 0) {
+    return (
+      <div style={{ 
+        textAlign: 'center', 
+        padding: '60px',
+        background: 'linear-gradient(135deg, rgba(15, 15, 35, 0.8) 0%, rgba(139, 92, 246, 0.3) 100%)',
+        borderRadius: '16px',
+        border: '1px solid rgba(255, 255, 255, 0.1)',
+        color: '#ffffff'
+      }}>
+        <h3 style={{ color: '#8B5CF6' }}>No hire rate data available</h3>
+      </div>
+    )
   }
 
-  const hireRateData = processHireRateData()
+  // Define hire rate ranges
+  const hireRateRanges = [
+    { name: 'Very Low (0-20%)', min: 0, max: 20, color: '#EF4444', icon: '🔻' },
+    { name: 'Low (20-40%)', min: 20, max: 40, color: '#F59E0B', icon: '📉' },
+    { name: 'Medium (40-60%)', min: 40, max: 60, color: '#10B981', icon: '📊' },
+    { name: 'High (60-80%)', min: 60, max: 80, color: '#3B82F6', icon: '📈' },
+    { name: 'Excellent (80%+)', min: 80, max: 100, color: '#8B5CF6', icon: '🏆' }
+  ]
 
-  // Deduplicate by client to ensure we count unique clients
-  const uniqueClients = hireRateData.reduce((acc, item) => {
-    const clientKey = `${item.job.client_location}_${item.job.client_total_spent}_${item.rate}`
-    if (!acc[clientKey]) {
-      acc[clientKey] = item
+  // Count jobs in each range
+  const rangeCounts = hireRateRanges.map(range => {
+    const count = hireRateData.filter(item => 
+      item.rate >= range.min && item.rate < range.max
+    ).length
+    const percentage = ((count / hireRateData.length) * 100)
+    return {
+      ...range,
+      count,
+      percentage,
+      avgRate: hireRateData
+        .filter(item => item.rate >= range.min && item.rate < range.max)
+        .reduce((sum, item) => sum + item.rate, 0) / count || 0
     }
-    return acc
-  }, {} as Record<string, any>)
-
-  const uniqueHireRateData = Object.values(uniqueClients)
-  console.log('Unique clients after deduplication:', uniqueHireRateData.length)
-
-  // Create meaningful hire rate performance tiers
-  const createHireRateTiers = (data: any[]) => {
-    const tiers = [
-      { label: 'Poor Performance', min: 0, max: 20, color: '#ef4444', description: 'Low hiring success' },
-      { label: 'Below Average', min: 20, max: 40, color: '#f97316', description: 'Room for improvement' },
-      { label: 'Average Performance', min: 40, max: 60, color: '#f59e0b', description: 'Standard hiring rate' },
-      { label: 'Good Performance', min: 60, max: 80, color: '#84cc16', description: 'Above average success' },
-      { label: 'Excellent Performance', min: 80, max: 95, color: '#3ecf8e', description: 'High hiring success' },
-      { label: 'Perfect Track Record', min: 95, max: 100, color: '#8b5cf6', description: 'Nearly perfect hiring' }
-    ]
-
-    console.log('Processing hire rate data:', data.map(d => ({ rate: d.rate, client: d.job?.client_location })))
-
-    return tiers.map(tier => {
-      const clients = data.filter(item => {
-        // Use inclusive boundaries and handle edge cases properly
-        if (tier.max === 100) {
-          return item.rate >= tier.min && item.rate <= tier.max
-        } else {
-          return item.rate >= tier.min && item.rate < tier.max
-        }
-      })
-      
-      console.log(`Tier ${tier.label} (${tier.min}-${tier.max}%):`, clients.length, 'clients')
-      
-      const avgSpent = clients.length > 0 
-        ? clients.reduce((sum, c) => sum + c.totalSpent, 0) / clients.length 
-        : 0
-      
-      const avgHires = clients.length > 0 
-        ? clients.reduce((sum, c) => sum + c.totalHires, 0) / clients.length 
-        : 0
-
-      const avgJobs = clients.length > 0 
-        ? clients.reduce((sum, c) => sum + c.jobsPosted, 0) / clients.length 
-        : 0
-
-      return {
-        ...tier,
-        count: clients.length,
-        avgSpent: avgSpent.toFixed(0),
-        avgHires: avgHires.toFixed(1),
-        avgJobs: avgJobs.toFixed(1),
-        percentage: ((clients.length / data.length) * 100).toFixed(1),
-        clients
-      }
-    }).filter(tier => tier.count > 0) // Only show tiers with clients
-  }
-
-  const hireRateTiers = createHireRateTiers(uniqueHireRateData)
-  const maxClients = Math.max(...hireRateTiers.map(tier => tier.count))
-
-  // Calculate insights
-  const totalClients = uniqueHireRateData.length
-  const avgHireRate = totalClients > 0 ? uniqueHireRateData.reduce((sum, item) => sum + item.rate, 0) / totalClients : 0
-  const medianHireRate = uniqueHireRateData.sort((a, b) => a.rate - b.rate)[Math.floor(totalClients / 2)]?.rate || 0
-  const excellentClients = uniqueHireRateData.filter(item => item.rate >= 80).length
-  const poorClients = uniqueHireRateData.filter(item => item.rate < 40).length
+  }).filter(range => range.count > 0)
 
   const option = {
+    backgroundColor: '#0a0e1a',
     title: {
-      text: 'Client Hire Rate Distribution',
-      subtext: `Performance analysis of ${totalClients} clients across ${hireRateTiers.length} performance tiers`,
+      text: '📊 Client Hire Rate Analysis',
+      subtext: `Success rate analysis from ${hireRateData.length} clients with hire rate data`,
       left: 'center',
       top: '3%',
       textStyle: {
-        fontSize: 24,
+        fontSize: 28,
         fontWeight: 'bold',
-        color: '#ffffff'
+        color: '#ffffff',
+        textShadowColor: 'rgba(139, 92, 246, 0.6)',
+        textShadowBlur: 15
       },
       subtextStyle: {
-        color: 'rgba(255, 255, 255, 0.7)',
-        fontSize: 14
+        color: 'rgba(255, 255, 255, 0.8)',
+        fontSize: 16,
+        fontWeight: '500'
       }
     },
     tooltip: {
       trigger: 'axis',
       axisPointer: {
-        type: 'shadow',
-        shadowStyle: {
-          color: 'rgba(62, 207, 142, 0.1)'
+        type: 'cross',
+        crossStyle: {
+          color: 'rgba(139, 92, 246, 0.5)'
         }
       },
       backgroundColor: 'rgba(15, 15, 35, 0.95)',
-      borderColor: 'rgba(62, 207, 142, 0.3)',
+      borderColor: 'rgba(139, 92, 246, 0.3)',
       borderWidth: 2,
       textStyle: {
         color: '#ffffff',
-        fontSize: 13
+        fontSize: 14
       },
       formatter: function(params: any) {
         const data = params[0]
-        const tier = hireRateTiers[data.dataIndex]
+        const rangeInfo = rangeCounts[data.dataIndex]
         return `
-          <div style="padding: 10px;">
-            <strong style="color: #3ecf8e;">${tier.label}</strong><br/>
-            <span style="color: #60a5fa;">📊 Range:</span> ${tier.min}% - ${tier.max}%<br/>
-            <span style="color: #f59e0b;">👥 Clients:</span> ${tier.count} (${tier.percentage}%)<br/>
-            <span style="color: #8b5cf6;">💰 Avg Spent:</span> $${tier.avgSpent}<br/>
-            <span style="color: #10b981;">🎯 Avg Hires:</span> ${tier.avgHires}<br/>
-            <span style="color: #ec4899;">📝 Avg Jobs Posted:</span> ${tier.avgJobs}<br/>
-            <span style="color: #6b7280;">💡 ${tier.description}</span>
+          <div style="padding: 15px; border-radius: 12px; background: linear-gradient(135deg, ${rangeInfo.color}30, ${rangeInfo.color}15);">
+            <div style="text-align: center; margin-bottom: 10px;">
+              <span style="font-size: 28px;">${rangeInfo.icon}</span>
+            </div>
+            <strong style="color: ${rangeInfo.color}; font-size: 18px; display: block; margin-bottom: 10px;">${rangeInfo.name}</strong>
+            <div style="margin: 8px 0;">
+              <span style="color: #4ECDC4;">👥 Clients:</span> <span style="color: #ffffff; font-weight: bold;">${rangeInfo.count}</span>
+            </div>
+            <div style="margin: 8px 0;">
+              <span style="color: #FF6B6B;">📊 Distribution:</span> <span style="color: #ffffff; font-weight: bold;">${rangeInfo.percentage.toFixed(1)}%</span>
+            </div>
+            <div style="margin: 8px 0;">
+              <span style="color: #A29BFE;">⭐ Avg Rate:</span> <span style="color: #ffffff; font-weight: bold;">${rangeInfo.avgRate.toFixed(1)}%</span>
+            </div>
           </div>
         `
       }
@@ -161,22 +117,24 @@ export default function ClientHireRateChart({ jobs }: ClientHireRateChartProps) 
     grid: {
       left: '8%',
       right: '8%',
-      top: '18%',
       bottom: '15%',
+      top: '18%',
       containLabel: true
     },
     xAxis: {
       type: 'category',
-      data: hireRateTiers.map(tier => tier.label),
+      data: rangeCounts.map(range => `${range.icon} ${range.name.split(' (')[0]}`),
       axisLabel: {
-        rotate: 25,
         fontSize: 12,
         color: '#ffffff',
-        fontWeight: '500'
+        fontWeight: 'bold',
+        rotate: 15,
+        margin: 15
       },
       axisLine: {
         lineStyle: {
-          color: 'rgba(255, 255, 255, 0.3)'
+          color: 'rgba(255, 255, 255, 0.3)',
+          width: 2
         }
       },
       axisTick: {
@@ -189,173 +147,177 @@ export default function ClientHireRateChart({ jobs }: ClientHireRateChartProps) 
       type: 'value',
       name: 'Number of Clients',
       nameLocation: 'middle',
-      nameGap: 45,
+      nameGap: 50,
       nameTextStyle: {
         color: '#ffffff',
         fontSize: 14,
         fontWeight: 'bold'
       },
-      max: Math.ceil(maxClients * 1.1),
       axisLabel: {
         color: '#ffffff',
-        fontSize: 12
+        fontSize: 12,
+        fontWeight: '500'
       },
       axisLine: {
         lineStyle: {
-          color: 'rgba(255, 255, 255, 0.3)'
+          color: 'rgba(255, 255, 255, 0.3)',
+          width: 2
         }
       },
       splitLine: {
         lineStyle: {
-          color: 'rgba(255, 255, 255, 0.1)'
+          color: 'rgba(255, 255, 255, 0.1)',
+          type: 'dashed'
         }
       }
     },
     series: [
       {
-        name: 'Client Count',
-        type: 'bar',
-        data: hireRateTiers.map((tier, index) => ({
-          value: tier.count,
-          itemStyle: {
-            color: tier.color,
-            borderRadius: [6, 6, 0, 0],
-            shadowBlur: 8,
-            shadowColor: 'rgba(0, 0, 0, 0.3)'
+        name: 'Client Hire Rates',
+        type: 'line',
+        data: rangeCounts.map(range => range.count),
+        smooth: 0.3,
+        lineStyle: {
+          color: '#8B5CF6',
+          width: 4,
+          shadowColor: 'rgba(139, 92, 246, 0.5)',
+          shadowBlur: 10,
+          shadowOffsetY: 3
+        },
+        itemStyle: {
+          color: '#8B5CF6',
+          borderColor: '#ffffff',
+          borderWidth: 3,
+          shadowColor: 'rgba(139, 92, 246, 0.8)',
+          shadowBlur: 15,
+          shadowOffsetY: 5
+        },
+        areaStyle: {
+          color: {
+            type: 'linear',
+            x: 0,
+            y: 0,
+            x2: 0,
+            y2: 1,
+            colorStops: [
+              {
+                offset: 0,
+                color: 'rgba(139, 92, 246, 0.6)'
+              },
+              {
+                offset: 0.5,
+                color: 'rgba(139, 92, 246, 0.3)'
+              },
+              {
+                offset: 1,
+                color: 'rgba(139, 92, 246, 0.05)'
+              }
+            ]
           }
-        })),
+        },
         emphasis: {
           itemStyle: {
-            shadowBlur: 15,
-            shadowOffsetY: -3,
-            shadowColor: 'rgba(62, 207, 142, 0.4)',
-            borderColor: 'rgba(255, 255, 255, 0.5)',
-            borderWidth: 2
+            color: '#A78BFA',
+            borderColor: '#ffffff',
+            borderWidth: 4,
+            shadowColor: 'rgba(167, 139, 250, 0.8)',
+            shadowBlur: 20,
+            shadowOffsetY: 8,
+            scale: 1.2
           },
-          scale: 1.05
-        },
-        label: {
-          show: true,
-          position: 'top',
-          color: '#ffffff',
-          fontSize: 12,
-          fontWeight: 'bold',
-          formatter: function(params: any) {
-            const tier = hireRateTiers[params.dataIndex]
-            return `${params.value} (${tier.percentage}%)`
+          lineStyle: {
+            width: 6
           }
         },
-        barMaxWidth: 80
+        markPoint: {
+          data: [
+            {
+              type: 'max',
+              name: 'Peak Success',
+              itemStyle: {
+                color: '#10B981'
+              },
+              label: {
+                color: '#ffffff',
+                fontWeight: 'bold'
+              }
+            }
+          ],
+          symbolSize: 60,
+          itemStyle: {
+            shadowColor: 'rgba(16, 185, 129, 0.8)',
+            shadowBlur: 15
+          }
+        },
+        markLine: {
+          data: [
+            {
+              type: 'average',
+              name: 'Average',
+              lineStyle: {
+                color: '#F59E0B',
+                width: 2,
+                type: 'dashed'
+              },
+              label: {
+                color: '#F59E0B',
+                fontWeight: 'bold'
+              }
+            }
+          ]
+        }
       }
     ],
     animation: true,
-    animationDuration: 1200,
-    animationEasing: 'bounceOut'
+    animationDuration: 2500,
+    animationEasing: 'cubicOut',
+    animationDelay: function (idx: number) {
+      return idx * 15
+    }
   }
 
   return (
-    <div className="space-y-6">
-      <div className="text-center">
-        <h3 className="section-header">Client Hire Rate Analysis</h3>
-        <p className="section-subtitle">Understanding client hiring success patterns and performance indicators</p>
-      </div>
-
-      {/* Chart Container */}
-      <div className="chart-container">
-        <ReactECharts 
-          option={option} 
-          style={{ height: '700px', width: '100%' }}
-          opts={{ renderer: 'canvas' }}
-        />
-      </div>
-
-      {/* Hire Rate Insights */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
-        <div className="clean-card p-6">
-          <h4 className="text-lg font-semibold text-accent mb-4">📊 Performance Overview</h4>
-          <div className="space-y-3 text-sm">
-            <div className="flex justify-between items-center">
-              <span className="text-secondary">Total Clients:</span>
-              <span className="text-accent font-semibold">{totalClients}</span>
-            </div>
-            <div className="flex justify-between items-center">
-              <span className="text-secondary">Average Hire Rate:</span>
-              <span className="text-secondary">{avgHireRate.toFixed(1)}%</span>
-            </div>
-            <div className="flex justify-between items-center">
-              <span className="text-secondary">Median Hire Rate:</span>
-              <span className="text-secondary">{medianHireRate.toFixed(1)}%</span>
-            </div>
-            <div className="flex justify-between items-center">
-              <span className="text-secondary">Excellent (&gt;80%):</span>
-              <span className="text-secondary">{excellentClients} clients</span>
-            </div>
-          </div>
-        </div>
-
-        <div className="clean-card p-6">
-          <h4 className="text-lg font-semibold text-accent mb-4">🎯 Top Performers</h4>
-          <div className="space-y-3 text-sm">
-            {hireRateTiers.slice(-2).reverse().map((tier, index) => (
-              <div key={tier.label} className="space-y-1">
-                <div className="flex justify-between items-center">
-                  <span className="text-secondary" style={{ color: tier.color }}>
-                    {tier.label}:
-                  </span>
-                  <span className="text-secondary">{tier.count} clients</span>
-                </div>
-                <div className="text-xs text-muted">
-                  Avg spent: ${tier.avgSpent} • {tier.avgHires} hires
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
-
-        <div className="clean-card p-6">
-          <h4 className="text-lg font-semibold text-accent mb-4">⚠️ Risk Assessment</h4>
-          <div className="space-y-3 text-sm">
-            <div className="flex justify-between items-center">
-              <span className="text-secondary">Poor (&lt;40%):</span>
-              <span className="text-red-400">{poorClients} clients</span>
-            </div>
-            <div className="flex justify-between items-center">
-              <span className="text-secondary">Risk Percentage:</span>
-              <span className="text-red-400">{((poorClients / totalClients) * 100).toFixed(1)}%</span>
-            </div>
-            <div className="flex justify-between items-center">
-              <span className="text-secondary">Success Rate (&gt;60%):</span>
-              <span className="text-green-400">
-                {uniqueHireRateData.filter(item => item.rate >= 60).length} clients
-              </span>
-            </div>
-            <div className="flex justify-between items-center">
-              <span className="text-secondary">Success Percentage:</span>
-              <span className="text-green-400">
-                {((uniqueHireRateData.filter(item => item.rate >= 60).length / totalClients) * 100).toFixed(1)}%
-              </span>
-            </div>
-          </div>
-        </div>
-
-        <div className="clean-card p-6">
-          <h4 className="text-lg font-semibold text-accent mb-4">💡 Strategy Tips</h4>
-          <div className="space-y-2 text-sm text-muted">
-            <p>• Prioritize clients with &gt;60% hire rates</p>
-            <p>• Excellent performers (&gt;80%) are premium targets</p>
-            <p>• Avoid clients with &lt;20% hire rates</p>
-            <p>• Build relationships with consistent hirers</p>
-          </div>
-        </div>
-      </div>
-
-      {/* Chart Explanation */}
-      <div className="chart-explanation" style={{ maxWidth: '900px', margin: '0 auto' }}>
-        <h4>🎯 Understanding Client Hire Rate Performance</h4>
-        <p>
-          This analysis reveals client hiring behavior patterns and success rates. Clients with higher hire rates 
-          are more likely to convert proposals into actual work, making them valuable targets for your business 
-          development efforts. Focus on building relationships with consistent, high-performing hirers.
+    <div style={{ 
+      textAlign: 'center',
+      background: 'linear-gradient(135deg, rgba(15, 15, 35, 0.8) 0%, rgba(139, 92, 246, 0.2) 50%, rgba(59, 130, 246, 0.2) 100%)',
+      borderRadius: '16px',
+      padding: '24px',
+      margin: '16px 0',
+      border: '1px solid rgba(255, 255, 255, 0.1)',
+      boxShadow: '0 20px 40px rgba(139, 92, 246, 0.3)'
+    }}>
+      <ReactECharts 
+        option={option} 
+        style={{ height: '700px', width: '100%' }}
+        opts={{ renderer: 'canvas' }}
+      />
+      
+      <div style={{ 
+        maxWidth: '900px', 
+        margin: '24px auto 0', 
+        padding: '20px',
+        background: 'rgba(255, 255, 255, 0.05)',
+        borderRadius: '12px',
+        border: '1px solid rgba(139, 92, 246, 0.3)',
+        backdropFilter: 'blur(10px)'
+      }}>
+        <h4 style={{ 
+          color: '#8B5CF6', 
+          marginBottom: '12px',
+          fontSize: '18px',
+          fontWeight: 'bold'
+        }}>
+          🎯 Success Rate Intelligence
+        </h4>
+        <p style={{ 
+          color: 'rgba(255, 255, 255, 0.9)', 
+          lineHeight: '1.7',
+          fontSize: '14px',
+          margin: 0
+        }}>
+          This analysis reveals client hiring patterns and success rates across different performance tiers. 
+          Target clients with higher hire rates for better conversion probability, while understanding 
+          that lower rates may indicate either more selective clients or opportunities for improvement.
         </p>
       </div>
     </div>

@@ -28,137 +28,116 @@ export default function SkillsDemandChart({ jobs }: SkillsDemandChartProps) {
     // Use Set to track unique skills per job (no duplicates)
     const jobSkills = new Set<string>()
     
-    // 1. Extract from skills JSONB column
-    if (job.skills) {
-      try {
-        let skillsData = job.skills
-        
-        // Handle if skills is a string (parse it) or already an object
-        if (typeof skillsData === 'string') {
-          skillsData = JSON.parse(skillsData)
-        }
-        
-        // Extract skills from various possible structures
-        if (Array.isArray(skillsData)) {
-          // Skills as array: ["React", "JavaScript", ...]
-          skillsData.forEach((skill: any) => {
-            if (typeof skill === 'string') {
-              jobSkills.add(skill.trim())
-            } else if (skill && skill.name) {
-              jobSkills.add(skill.name.trim())
-            }
-          })
-        } else if (typeof skillsData === 'object') {
-          // Skills as object: { "frontend": ["React", "JS"], "backend": ["Node.js"] }
-          Object.values(skillsData).forEach((categorySkills: any) => {
-            if (Array.isArray(categorySkills)) {
-              categorySkills.forEach((skill: any) => {
-                if (typeof skill === 'string') {
-                  jobSkills.add(skill.trim())
-                } else if (skill && skill.name) {
-                  jobSkills.add(skill.name.trim())
-                }
-              })
-            }
-          })
-        }
-      } catch (error) {
-        console.log('Error parsing skills JSON:', error)
-      }
-    }
+    // Define fields to search for skills
+    const searchFields = [
+      job.title || '',
+      job.description || '',
+      // Convert skills array to string for searching
+      Array.isArray(job.skills) ? job.skills.join(' ') : (job.skills || '')
+    ]
     
-    // 2. Extract from title and description (text analysis)
-    const text = `${job.title || ''} ${job.description || ''}`.toLowerCase()
+    // Combine all searchable text
+    const searchText = searchFields.join(' ').toLowerCase()
     
+    // Check for each skill in all fields
     commonSkills.forEach(skill => {
-      if (text.includes(skill.toLowerCase())) {
+      const skillLower = skill.toLowerCase()
+      
+      // Check for exact skill matches (word boundaries)
+      const skillPattern = new RegExp(`\\b${skillLower.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\b`, 'i')
+      
+      if (skillPattern.test(searchText)) {
         jobSkills.add(skill)
       }
     })
     
-    // 3. Count each unique skill found in this job
+    // Add found skills to count
     jobSkills.forEach(skill => {
-      // Normalize skill names (case-insensitive, handle variations)
-      const normalizedSkill = normalizeSkillName(skill)
-      if (normalizedSkill) {
-        skillsCount[normalizedSkill] = (skillsCount[normalizedSkill] || 0) + 1
-      }
+      skillsCount[skill] = (skillsCount[skill] || 0) + 1
     })
   })
 
-  // Helper function to normalize skill names
-  function normalizeSkillName(skill: string): string | null {
-    const normalized = skill.trim()
-    if (normalized.length < 2) return null
-    
-    // Handle common variations and aliases
-    const skillMap: Record<string, string> = {
-      'js': 'JavaScript',
-      'javascript': 'JavaScript',
-      'reactjs': 'React',
-      'react.js': 'React',
-      'nodejs': 'Node.js',
-      'node': 'Node.js',
-      'typescript': 'TypeScript',
-      'ts': 'TypeScript',
-      'html5': 'HTML',
-      'css3': 'CSS',
-      'postgresql': 'PostgreSQL',
-      'postgres': 'PostgreSQL',
-      'mysql': 'MySQL',
-      'mongodb': 'MongoDB',
-      'mongo': 'MongoDB',
-      'aws': 'AWS',
-      'amazon web services': 'AWS',
-      'machine learning': 'Machine Learning',
-      'ml': 'Machine Learning',
-      'artificial intelligence': 'AI',
-      'ui/ux': 'UI/UX',
-      'user experience': 'UI/UX',
-      'user interface': 'UI/UX'
-    }
-    
-    const lowerSkill = normalized.toLowerCase()
-    return skillMap[lowerSkill] || 
-           normalized.charAt(0).toUpperCase() + normalized.slice(1).toLowerCase()
-  }
-
-  // Sort skills by frequency and take top 15
+  // Sort skills by demand (count) and get top 15
   const topSkills = Object.entries(skillsCount)
-    .sort(([,a], [,b]) => b - a)
+    .map(([skill, count]) => ({
+      skill,
+      count,
+      percentage: ((count / jobs.length) * 100).toFixed(1)
+    }))
+    .sort((a, b) => b.count - a.count)
     .slice(0, 15)
-    .map(([skill, count]) => ({ skill, count }))
+
+  // Vibrant color palette for dark mode
+  const colors = [
+    '#FF6B6B', '#4ECDC4', '#45B7D1', '#96CEB4', '#FECA57', 
+    '#FF9FF3', '#54A0FF', '#5F27CD', '#00D2D3', '#FF9F43',
+    '#6C5CE7', '#FD79A8', '#FDCB6E', '#55A3FF', '#A29BFE'
+  ]
 
   const option = {
+    backgroundColor: '#0a0e1a',
     title: {
-      text: 'Most Requested Skills & Technologies',
+      text: '🎯 In-Demand Skills Analysis',
+      subtext: `Market intelligence from ${topSkills.length} high-demand skills`,
       left: 'center',
+      top: '3%',
       textStyle: {
-        fontSize: 16,
+        fontSize: 28,
         fontWeight: 'bold',
         color: '#ffffff'
+      },
+      subtextStyle: {
+        color: 'rgba(255, 255, 255, 0.8)',
+        fontSize: 16,
+        fontWeight: '500'
       }
     },
     tooltip: {
       trigger: 'axis',
       axisPointer: {
-        type: 'shadow'
+        type: 'shadow',
+        shadowStyle: {
+          color: 'rgba(6, 182, 212, 0.1)'
+        }
       },
-      backgroundColor: 'rgba(15, 15, 35, 0.9)',
-      borderColor: 'rgba(255, 255, 255, 0.1)',
+      backgroundColor: 'rgba(15, 15, 35, 0.95)',
+      borderColor: 'rgba(6, 182, 212, 0.3)',
       borderWidth: 1,
       textStyle: {
-        color: '#ffffff'
+        color: '#ffffff',
+        fontSize: 14
       },
       formatter: function(params: any) {
-        const data = params[0]
-        return `${data.name}<br/>Demand: ${data.value} jobs`
+        const data = params.data
+        const percentage = ((data.value / jobs.length) * 100).toFixed(1)
+        const demandLevel = data.value >= 15 ? 'High Demand' : 
+                           data.value >= 8 ? 'Growing Demand' : 
+                           data.value >= 4 ? 'Moderate Demand' : 'Emerging Skill'
+        
+        return `
+          <div style="padding: 15px; border-radius: 8px; background: linear-gradient(135deg, ${data.itemStyle.color}15, ${data.itemStyle.color}05);">
+            <div style="text-align: center; margin-bottom: 10px;">
+              <span style="font-size: 24px;">🎯</span>
+            </div>
+            <strong style="color: ${data.itemStyle.color}; font-size: 16px; display: block; margin-bottom: 10px;">${data.name}</strong>
+            <div style="margin: 8px 0;">
+              <span style="color: #4ECDC4;">📊 Jobs Available:</span> <span style="color: #ffffff; font-weight: bold;">${data.value}</span>
+            </div>
+            <div style="margin: 8px 0;">
+              <span style="color: #FF6B6B;">📈 Market Share:</span> <span style="color: #ffffff; font-weight: bold;">${percentage}%</span>
+            </div>
+            <div style="margin: 8px 0;">
+              <span style="color: #A29BFE;">💡 ${demandLevel}</span>
+            </div>
+          </div>
+        `
       }
     },
     grid: {
-      left: '3%',
-      right: '4%',
-      bottom: '3%',
+      left: '25%',
+      right: '8%',
+      bottom: '10%',
+      top: '18%',
       containLabel: true
     },
     xAxis: {
@@ -167,30 +146,45 @@ export default function SkillsDemandChart({ jobs }: SkillsDemandChartProps) {
       nameLocation: 'middle',
       nameGap: 30,
       nameTextStyle: {
-        color: '#ffffff'
+        color: '#ffffff',
+        fontSize: 14,
+        fontWeight: 'bold'
       },
       axisLabel: {
-        color: '#ffffff'
+        color: '#ffffff',
+        fontSize: 12,
+        fontWeight: '500'
       },
       axisLine: {
         lineStyle: {
-          color: 'rgba(255, 255, 255, 0.2)'
+          color: 'rgba(255, 255, 255, 0.2)',
+          width: 1
         }
       },
       splitLine: {
         lineStyle: {
-          color: 'rgba(255, 255, 255, 0.1)'
+          color: 'rgba(255, 255, 255, 0.1)',
+          type: 'dashed'
         }
       }
     },
     yAxis: {
       type: 'category',
-      data: topSkills.map(item => item.skill),
+      data: topSkills.map(skill => skill.skill),
       axisLabel: {
-        fontSize: 12,
-        color: '#ffffff'
+        color: '#ffffff',
+        fontSize: 13,
+        fontWeight: 'bold',
+        width: 120,
+        overflow: 'truncate'
       },
       axisLine: {
+        lineStyle: {
+          color: 'rgba(255, 255, 255, 0.2)',
+          width: 1
+        }
+      },
+      axisTick: {
         lineStyle: {
           color: 'rgba(255, 255, 255, 0.2)'
         }
@@ -198,40 +192,107 @@ export default function SkillsDemandChart({ jobs }: SkillsDemandChartProps) {
     },
     series: [
       {
-        name: 'Skill Demand',
+        name: 'Job Count',
         type: 'bar',
-        data: topSkills.map(item => item.count),
-        itemStyle: {
-          color: function(params: any) {
-            const colors = ['#3B82F6', '#10B981', '#F59E0B', '#EF4444', '#8B5CF6']
-            return colors[params.dataIndex % colors.length]
+        data: topSkills.map((skill, index) => ({
+          value: skill.count,
+          name: skill.skill,
+          itemStyle: {
+            color: {
+              type: 'linear',
+              x: 0,
+              y: 0,
+              x2: 1,
+              y2: 0,
+              colorStops: [
+                {
+                  offset: 0,
+                  color: colors[index % colors.length]
+                },
+                {
+                  offset: 0.5,
+                  color: colors[index % colors.length] + 'CC'
+                },
+                {
+                  offset: 1,
+                  color: colors[index % colors.length] + '88'
+                }
+              ]
+            },
+            borderRadius: [0, 8, 8, 0]
           }
-        },
+        })),
         emphasis: {
           itemStyle: {
-            shadowBlur: 10,
-            shadowOffsetX: 0,
-            shadowColor: 'rgba(0, 0, 0, 0.5)'
+            scale: 1.05
           }
-        }
+        },
+        label: {
+          show: true,
+          position: 'right',
+          color: '#ffffff',
+          fontSize: 12,
+          fontWeight: 'bold',
+          formatter: function(params: any) {
+            const percentage = ((params.value / jobs.length) * 100).toFixed(1)
+            return `${params.value} (${percentage}%)`
+          }
+        },
+        barMaxWidth: 30
       }
-    ]
+    ],
+    animation: true,
+    animationDuration: 2000,
+    animationEasing: 'elasticOut',
+    animationDelay: function (idx: number) {
+      return idx * 100
+    }
   }
 
   return (
-    <div style={{ textAlign: 'center' }}>
-      <div className="mb-8">
-        <h3 className="section-header">Most Requested Skills & Technologies</h3>
-        <p className="section-subtitle">Top in-demand skills and technologies</p>
-      </div>
+    <div style={{ 
+      textAlign: 'center',
+      background: 'linear-gradient(135deg, rgba(15, 15, 35, 0.8) 0%, rgba(30, 30, 60, 0.8) 100%)',
+      borderRadius: '16px',
+      padding: '24px',
+      margin: '16px 0',
+      border: '1px solid rgba(255, 255, 255, 0.1)',
+      boxShadow: '0 20px 40px rgba(0, 0, 0, 0.3)'
+    }}>
       <ReactECharts 
         option={option} 
-        style={{ height: '600px', margin: '0 auto' }}
+        style={{ height: '700px', width: '100%' }}
         opts={{ renderer: 'canvas' }}
       />
-      <div className="chart-explanation" style={{ maxWidth: '800px', margin: '0 auto', marginTop: '24px' }}>
-        <h4>🛠️ What This Shows</h4>
-        <p>This horizontal bar chart displays the most requested skills and technologies in job postings. Focus on developing expertise in the highest-demand skills to increase your marketability and earning potential.</p>
+      
+      <div style={{ 
+        maxWidth: '900px', 
+        margin: '24px auto 0', 
+        padding: '20px',
+        background: 'rgba(255, 255, 255, 0.05)',
+        borderRadius: '12px',
+        border: '1px solid rgba(255, 255, 255, 0.1)',
+        backdropFilter: 'blur(10px)'
+      }}>
+        <h4 style={{ 
+          color: '#4ECDC4', 
+          marginBottom: '12px',
+          fontSize: '18px',
+          fontWeight: 'bold'
+        }}>
+          💡 Strategic Skills Intelligence
+        </h4>
+        <p style={{ 
+          color: 'rgba(255, 255, 255, 0.9)', 
+          lineHeight: '1.7',
+          fontSize: '14px',
+          margin: 0
+        }}>
+          This dynamic visualization reveals the most in-demand skills and technologies in the current job market. 
+          Each skill is represented with vibrant gradients and precise market penetration data. Focus your learning 
+          and development efforts on the top-ranking technologies to maximize your marketability and earning potential 
+          in today's competitive landscape.
+        </p>
       </div>
     </div>
   )

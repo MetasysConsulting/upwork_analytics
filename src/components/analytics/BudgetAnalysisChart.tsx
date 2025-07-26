@@ -8,307 +8,358 @@ interface BudgetAnalysisChartProps {
 }
 
 export default function BudgetAnalysisChart({ jobs }: BudgetAnalysisChartProps) {
-  // Process hourly rates into meaningful competitive tiers
-  const processHourlyRates = () => {
-    const rates: number[] = []
-    
-    jobs.forEach(job => {
-      if (job.budget_amount && job.budget_type?.toLowerCase().includes('hourly')) {
-        const amount = job.budget_amount
-        
-        // Skip non-USD currencies
-        if (amount.includes('TL') || amount.includes('EUR') || amount.includes('£') || amount.includes('€')) {
-          return
-        }
-
-        // Handle ranges like "$28.00 - $56.00" or single values
-        const rangeMatch = amount.match(/\$?([\d,]+\.?\d*)\s*-\s*\$?([\d,]+\.?\d*)/)
-        const singleMatch = amount.match(/\$?([\d,]+\.?\d*)/)
-        
-        if (rangeMatch) {
-          const minValue = parseFloat(rangeMatch[1].replace(/,/g, ''))
-          const maxValue = parseFloat(rangeMatch[2].replace(/,/g, ''))
-          const avgValue = (minValue + maxValue) / 2
-          
-          if (avgValue <= 500) { // Sanity check
-            rates.push(avgValue)
-          }
-        } else if (singleMatch) {
-          const numericValue = parseFloat(singleMatch[1].replace(/,/g, ''))
-          
-          if (numericValue <= 500) { // Sanity check
-            rates.push(numericValue)
-          }
-        }
+  // Extract all budget data from jobs (both hourly and fixed-price)
+  const budgetData = jobs
+    .filter(job => job.budget_amount && job.budget_amount.trim() !== '')
+    .map(job => {
+      const budgetStr = job.budget_amount || ''
+      const budgetType = job.budget_type?.toLowerCase() || 'unknown'
+      
+      // Extract monetary values from budget strings
+      const matches = budgetStr.match(/\$?([\d,]+\.?\d*)/g)
+      if (!matches) return null
+      
+      const amounts = matches.map(match => parseFloat(match.replace(/[\$,]/g, '')))
+      let estimatedValue = 0
+      
+      if (budgetType === 'hourly') {
+        // For hourly: assume 40 hours for comparison (average small project)
+        const avgRate = amounts.reduce((sum, rate) => sum + rate, 0) / amounts.length
+        estimatedValue = avgRate * 40
+      } else {
+        // For fixed-price: use the average or single value
+        estimatedValue = amounts.reduce((sum, amount) => sum + amount, 0) / amounts.length
+      }
+      
+      return {
+        value: estimatedValue,
+        type: budgetType,
+        originalBudget: budgetStr,
+        jobTitle: job.title || 'Untitled'
       }
     })
-    
-    return rates
-  }
+    .filter(item => item !== null && item.value > 0) as Array<{
+      value: number;
+      type: string;
+      originalBudget: string;
+      jobTitle: string;
+    }>
 
-  const hourlyRates = processHourlyRates()
-
-  // Create competitive rate tiers
-  const createRateTiers = (rates: number[]) => {
-    if (rates.length === 0) return []
-
-    const tiers = [
-      { name: 'Budget Tier ($10-25/hr)', min: 0, max: 25, color: '#ef4444', description: 'Entry-level competition' },
-      { name: 'Standard Tier ($25-40/hr)', min: 25, max: 40, color: '#f97316', description: 'Competitive market' },
-      { name: 'Premium Tier ($40-60/hr)', min: 40, max: 60, color: '#f59e0b', description: 'Above average rates' },
-      { name: 'Expert Tier ($60-80/hr)', min: 60, max: 80, color: '#84cc16', description: 'Specialized skills' },
-      { name: 'Elite Tier ($80-100/hr)', min: 80, max: 100, color: '#3ecf8e', description: 'Top-tier expertise' },
-      { name: 'Luxury Tier ($100+/hr)', min: 100, max: Infinity, color: '#8b5cf6', description: 'Premium consultancy' }
-    ]
-
-    return tiers.map(tier => {
-      const count = rates.filter(rate => {
-        if (tier.max === Infinity) {
-          return rate >= tier.min
-        } else {
-          return rate >= tier.min && rate < tier.max
-        }
-      }).length
-
-      const percentage = rates.length > 0 ? ((count / rates.length) * 100).toFixed(1) : '0'
-
-      return {
-        name: tier.name,
-        value: count,
-        percentage,
-        color: tier.color,
-        description: tier.description
-      }
-    }).filter(tier => tier.value > 0) // Only show tiers with jobs
-  }
-
-  const rateTiers = createRateTiers(hourlyRates)
-  const totalJobs = hourlyRates.length
-  const avgRate = totalJobs > 0 ? (hourlyRates.reduce((sum, rate) => sum + rate, 0) / totalJobs).toFixed(2) : '0'
-  const medianRate = totalJobs > 0 ? hourlyRates.sort((a, b) => a - b)[Math.floor(totalJobs / 2)].toFixed(2) : '0'
-
-  const option = {
-    title: {
-      text: 'Competitive Rate Distribution',
-      subtext: `Market positioning across ${totalJobs} hourly jobs (Avg: $${avgRate}/hr)`,
-      left: 'center',
-      top: '3%',
-      textStyle: {
-        fontSize: 24,
-        fontWeight: 'bold',
-        color: '#ffffff'
-      },
-      subtextStyle: {
-        color: 'rgba(255, 255, 255, 0.7)',
-        fontSize: 14
-      }
-    },
-    tooltip: {
-      trigger: 'item',
-      backgroundColor: 'rgba(15, 15, 35, 0.95)',
-      borderColor: 'rgba(62, 207, 142, 0.3)',
-      borderWidth: 2,
-      textStyle: {
-        color: '#ffffff',
-        fontSize: 13
-      },
-      formatter: function(params: any) {
-        const data = params.data
-        return `
-          <div style="padding: 10px;">
-            <strong style="color: #3ecf8e;">${data.name}</strong><br/>
-            <span style="color: #60a5fa;">📊 Jobs:</span> ${data.value} (${data.percentage}%)<br/>
-            <span style="color: #f59e0b;">💡 ${data.description}</span>
-          </div>
-        `
-      }
-    },
-    legend: {
-      orient: 'vertical',
-      left: '5%',
-      top: '25%',
-      textStyle: {
-        color: '#ffffff',
-        fontSize: 12
-      },
-      formatter: function(name: string) {
-        const tier = rateTiers.find(t => t.name === name)
-        return `${name} (${tier?.value || 0})`
-      }
-    },
-    series: [
-      {
-        name: 'Rate Distribution',
-        type: 'pie',
-        radius: ['45%', '75%'],
-        center: ['65%', '50%'],
-        data: rateTiers.map(tier => ({
-          name: tier.name,
-          value: tier.value,
-          percentage: tier.percentage,
-          description: tier.description,
-          itemStyle: {
-            color: tier.color,
-            borderRadius: 8,
-            borderColor: 'rgba(255, 255, 255, 0.1)',
-            borderWidth: 2
-          }
-        })),
-        emphasis: {
-          itemStyle: {
-            shadowBlur: 15,
-            shadowOffsetY: -3,
-            shadowColor: 'rgba(62, 207, 142, 0.5)',
-            borderColor: 'rgba(255, 255, 255, 0.8)',
-            borderWidth: 3,
-            scale: 1.1
-          }
-        },
-        labelLine: {
-          show: false
-        },
-        label: {
-          show: true,
-          position: 'outside',
-          color: '#ffffff',
-          fontSize: 12,
-          fontWeight: 'bold',
-          formatter: function(params: any) {
-            return `${params.data.percentage}%`
-          }
-        }
-      }
-    ],
-    animation: true,
-    animationDuration: 1200,
-    animationEasing: 'cubicOut'
-  }
-
-  if (totalJobs === 0) {
+  if (budgetData.length === 0) {
     return (
-      <div className="space-y-6">
-        <div className="text-center">
-          <h3 className="section-header">Competitive Rate Distribution</h3>
-          <p className="section-subtitle">Market positioning and competitive intelligence</p>
-        </div>
-        
-        <div className="clean-card p-8 text-center">
-          <div className="w-16 h-16 bg-accent/10 rounded-full flex items-center justify-center mx-auto mb-4">
-            <svg className="w-8 h-8 text-accent" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1" />
-            </svg>
-          </div>
-          <h3 className="text-xl font-semibold text-accent mb-2">No Rate Data</h3>
-          <p className="text-muted">No hourly rate information available for analysis.</p>
-        </div>
+      <div style={{ 
+        textAlign: 'center', 
+        padding: '60px',
+        background: 'linear-gradient(135deg, rgba(15, 15, 35, 0.8) 0%, rgba(255, 193, 7, 0.3) 100%)',
+        borderRadius: '16px',
+        border: '1px solid rgba(255, 255, 255, 0.1)',
+        color: '#ffffff'
+      }}>
+        <h3 style={{ color: '#FFC107' }}>No budget data available</h3>
       </div>
     )
   }
 
+  // Define comprehensive budget ranges
+  const budgetRanges = [
+    { 
+      name: 'Micro Projects ($1-$100)', 
+      min: 1, 
+      max: 100, 
+      color: '#FF6B6B', 
+      icon: '🔧',
+      description: 'Quick tasks & fixes'
+    },
+    { 
+      name: 'Small Projects ($100-$500)', 
+      min: 100, 
+      max: 500, 
+      color: '#FFB347', 
+      icon: '📱',
+      description: 'Short-term work'
+    },
+    { 
+      name: 'Medium Projects ($500-$2K)', 
+      min: 500, 
+      max: 2000, 
+      color: '#4ECDC4', 
+      icon: '💼',
+      description: 'Standard projects'
+    },
+    { 
+      name: 'Large Projects ($2K-$5K)', 
+      min: 2000, 
+      max: 5000, 
+      color: '#45B7D1', 
+      icon: '🏢',
+      description: 'Major deliverables'
+    },
+    { 
+      name: 'Enterprise ($5K-$15K)', 
+      min: 5000, 
+      max: 15000, 
+      color: '#A29BFE', 
+      icon: '🏛️',
+      description: 'Complex solutions'
+    },
+    { 
+      name: 'Premium ($15K+)', 
+      min: 15000, 
+      max: Infinity, 
+      color: '#FD79A8', 
+      icon: '👑',
+      description: 'High-value contracts'
+    }
+  ]
+
+  // Count projects in each budget range
+  const rangeCounts = budgetRanges.map(range => {
+    const projectsInRange = budgetData.filter(item => 
+      item.value >= range.min && item.value < range.max
+    )
+    
+    const count = projectsInRange.length
+    const percentage = ((count / budgetData.length) * 100)
+    const avgBudget = count > 0 
+      ? projectsInRange.reduce((sum, item) => sum + item.value, 0) / count 
+      : 0
+    
+    return {
+      ...range,
+      count,
+      percentage,
+      avgBudget: Math.round(avgBudget)
+    }
+  }).filter(range => range.count > 0)
+
+  // Calculate insights
+  const totalProjects = budgetData.length
+  const avgProjectValue = Math.round(budgetData.reduce((sum, item) => sum + item.value, 0) / totalProjects)
+  const hourlyProjects = budgetData.filter(item => item.type === 'hourly').length
+  const fixedProjects = budgetData.filter(item => item.type === 'fixed').length
+
+  const option = {
+    backgroundColor: '#0a0e1a',
+    title: {
+      text: '💰 Project Budget Landscape',
+      subtext: `Comprehensive analysis of ${totalProjects} projects • Avg Value: $${avgProjectValue.toLocaleString()} • ${Math.round((hourlyProjects/totalProjects)*100)}% Hourly`,
+      left: 'center',
+      top: '3%',
+      textStyle: {
+        fontSize: 28,
+        fontWeight: 'bold',
+        color: '#ffffff'
+      },
+      subtextStyle: {
+        color: 'rgba(255, 255, 255, 0.8)',
+        fontSize: 16,
+        fontWeight: '500'
+      }
+    },
+    tooltip: {
+      trigger: 'axis',
+      axisPointer: {
+        type: 'shadow',
+        shadowStyle: {
+          color: 'rgba(255, 193, 7, 0.1)'
+        }
+      },
+      backgroundColor: 'rgba(15, 15, 35, 0.95)',
+      borderColor: 'rgba(255, 193, 7, 0.3)',
+      borderWidth: 1,
+      textStyle: {
+        color: '#ffffff',
+        fontSize: 14
+      },
+      formatter: function(params: any) {
+        const data = params.data
+        const rangeInfo = rangeCounts[params.dataIndex]
+        return `
+          <div style="padding: 18px; border-radius: 8px; background: linear-gradient(135deg, ${rangeInfo.color}20, ${rangeInfo.color}08);">
+            <div style="text-align: center; margin-bottom: 12px;">
+              <span style="font-size: 28px;">${rangeInfo.icon}</span>
+            </div>
+            <strong style="color: ${rangeInfo.color}; font-size: 18px; display: block; margin-bottom: 12px;">${rangeInfo.name}</strong>
+            <div style="margin: 10px 0;">
+              <span style="color: #4ECDC4;">📊 Projects:</span> <span style="color: #ffffff; font-weight: bold;">${rangeInfo.count}</span>
+            </div>
+            <div style="margin: 10px 0;">
+              <span style="color: #FF6B6B;">📈 Market Share:</span> <span style="color: #ffffff; font-weight: bold;">${rangeInfo.percentage.toFixed(1)}%</span>
+            </div>
+            <div style="margin: 10px 0;">
+              <span style="color: #A29BFE;">💎 Avg Budget:</span> <span style="color: #ffffff; font-weight: bold;">$${rangeInfo.avgBudget.toLocaleString()}</span>
+            </div>
+            <div style="margin: 10px 0; padding-top: 8px; border-top: 1px solid rgba(255,255,255,0.1);">
+              <span style="color: #FFC107; font-style: italic;">${rangeInfo.description}</span>
+            </div>
+          </div>
+        `
+      }
+    },
+    grid: {
+      left: '30%',
+      right: '5%',
+      bottom: '12%',
+      top: '20%',
+      containLabel: false
+    },
+    xAxis: {
+      type: 'value',
+      min: 0,
+      name: 'Number of Projects',
+      nameLocation: 'middle',
+      nameGap: 35,
+      nameTextStyle: {
+        color: '#ffffff',
+        fontSize: 14,
+        fontWeight: 'bold'
+      },
+      axisLabel: {
+        color: '#ffffff',
+        fontSize: 12,
+        fontWeight: '500'
+      },
+      axisLine: {
+        show: true,
+        lineStyle: {
+          color: 'rgba(255, 255, 255, 0.3)',
+          width: 1
+        }
+      },
+      splitLine: {
+        lineStyle: {
+          color: 'rgba(255, 255, 255, 0.1)',
+          type: 'dashed'
+        }
+      }
+    },
+    yAxis: {
+      type: 'category',
+      data: rangeCounts.map(range => {
+        const [name, rangeText] = range.name.split(' (');
+        return `${range.icon} ${name}\n(${rangeText}`;
+      }),
+      axisLabel: {
+        color: '#ffffff',
+        fontSize: 11,
+        fontWeight: 'bold',
+        margin: 15,
+        align: 'right',
+        lineHeight: 14
+      },
+      axisLine: {
+        show: true,
+        lineStyle: {
+          color: 'rgba(255, 255, 255, 0.3)',
+          width: 1
+        }
+      },
+      axisTick: {
+        show: false
+      }
+    },
+    series: [
+      {
+        name: 'Project Distribution',
+        type: 'bar',
+        data: rangeCounts.map((range, index) => ({
+          value: range.count,
+          name: range.name,
+          itemStyle: {
+            color: {
+              type: 'linear',
+              x: 0,
+              y: 0,
+              x2: 1,
+              y2: 0,
+              colorStops: [
+                {
+                  offset: 0,
+                  color: range.color
+                },
+                {
+                  offset: 0.6,
+                  color: range.color + 'DD'
+                },
+                {
+                  offset: 1,
+                  color: range.color + '77'
+                }
+              ]
+            },
+            borderRadius: [0, 12, 12, 0]
+          }
+        })),
+        emphasis: {
+          itemStyle: {
+            scale: 1.05
+          }
+        },
+        label: {
+          show: true,
+          position: 'right',
+          color: '#ffffff',
+          fontSize: 12,
+          fontWeight: 'bold',
+          formatter: function(params: any) {
+            const rangeInfo = rangeCounts[params.dataIndex]
+            return `${params.value} (${rangeInfo.percentage.toFixed(1)}%)`
+          }
+        },
+        barMaxWidth: 35
+      }
+    ],
+    animation: true,
+    animationDuration: 2000,
+    animationEasing: 'elasticOut',
+    animationDelay: function (idx: number) {
+      return idx * 150
+    }
+  }
+
   return (
-    <div className="space-y-6">
-      <div className="text-center">
-        <h3 className="section-header">Competitive Rate Distribution</h3>
-        <p className="section-subtitle">Strategic market positioning across hourly rate tiers</p>
-      </div>
-
-      {/* Chart Container */}
-      <div className="chart-container">
-        <ReactECharts 
-          option={option} 
-          style={{ height: '700px', width: '100%' }}
-          opts={{ renderer: 'canvas' }}
-        />
-      </div>
-
-      {/* Rate Insights */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
-        <div className="clean-card p-6">
-          <h4 className="text-lg font-semibold text-accent mb-4">💰 Market Overview</h4>
-          <div className="space-y-3 text-sm">
-            <div className="flex justify-between items-center">
-              <span className="text-secondary">Total Jobs:</span>
-              <span className="text-accent font-semibold">{totalJobs}</span>
-            </div>
-            <div className="flex justify-between items-center">
-              <span className="text-secondary">Average Rate:</span>
-              <span className="text-secondary">${avgRate}/hr</span>
-            </div>
-            <div className="flex justify-between items-center">
-              <span className="text-secondary">Median Rate:</span>
-              <span className="text-secondary">${medianRate}/hr</span>
-            </div>
-            <div className="flex justify-between items-center">
-              <span className="text-secondary">Rate Tiers:</span>
-              <span className="text-secondary">{rateTiers.length} active</span>
-            </div>
-          </div>
-        </div>
-
-        <div className="clean-card p-6">
-          <h4 className="text-lg font-semibold text-accent mb-4">🎯 Top Tiers</h4>
-          <div className="space-y-3 text-sm">
-            {rateTiers.slice(-2).reverse().map((tier) => (
-              <div key={tier.name} className="space-y-1">
-                <div className="flex justify-between items-center">
-                  <span className="text-secondary" style={{ color: tier.color }}>
-                    {tier.name.split(' (')[0]}:
-                  </span>
-                  <span className="text-secondary">{tier.value} jobs</span>
-                </div>
-                <div className="text-xs text-muted">{tier.percentage}% • {tier.description}</div>
-              </div>
-            ))}
-          </div>
-        </div>
-
-        <div className="clean-card p-6">
-          <h4 className="text-lg font-semibold text-accent mb-4">📊 Competition Analysis</h4>
-          <div className="space-y-3 text-sm">
-            <div className="flex justify-between items-center">
-              <span className="text-secondary">Premium+ (&gt;$60/hr):</span>
-              <span className="text-secondary">
-                {rateTiers.filter(t => t.name.includes('Expert') || t.name.includes('Elite') || t.name.includes('Luxury')).reduce((sum, t) => sum + t.value, 0)} jobs
-              </span>
-            </div>
-            <div className="flex justify-between items-center">
-              <span className="text-secondary">Standard ($25-60/hr):</span>
-              <span className="text-secondary">
-                {rateTiers.filter(t => t.name.includes('Standard') || t.name.includes('Premium')).reduce((sum, t) => sum + t.value, 0)} jobs
-              </span>
-            </div>
-            <div className="flex justify-between items-center">
-              <span className="text-secondary">Budget (&lt;$25/hr):</span>
-              <span className="text-secondary">
-                {rateTiers.filter(t => t.name.includes('Budget')).reduce((sum, t) => sum + t.value, 0)} jobs
-              </span>
-            </div>
-            <div className="flex justify-between items-center">
-              <span className="text-secondary">Your Position:</span>
-              <span className="text-accent font-semibold">Analyze gaps</span>
-            </div>
-          </div>
-        </div>
-
-        <div className="clean-card p-6">
-          <h4 className="text-lg font-semibold text-accent mb-4">💡 Strategy Tips</h4>
-          <div className="space-y-2 text-sm text-muted">
-            <p>• Target less crowded tiers for better competition</p>
-            <p>• Position 10-20% above avg (${(parseFloat(avgRate) * 1.15).toFixed(0)}/hr+)</p>
-            <p>• Premium tiers often have higher success rates</p>
-            <p>• Avoid oversaturated budget tier competition</p>
-          </div>
-        </div>
-      </div>
-
-      {/* Chart Explanation */}
-      <div className="chart-explanation" style={{ maxWidth: '900px', margin: '0 auto' }}>
-        <h4>🎯 Understanding Rate Competition</h4>
-        <p>
-          This competitive analysis reveals how jobs are distributed across different hourly rate tiers. 
-          Use this intelligence to position your rates strategically - target less saturated tiers or 
-          premium segments where clients value quality over price. The market positioning insights help 
-          you maximize your earning potential while avoiding oversaturated competition.
+    <div style={{ 
+      textAlign: 'center',
+      background: 'linear-gradient(135deg, rgba(15, 15, 35, 0.8) 0%, rgba(60, 30, 90, 0.8) 100%)',
+      borderRadius: '16px',
+      padding: '24px',
+      margin: '16px 0',
+      border: '1px solid rgba(255, 255, 255, 0.1)',
+      boxShadow: '0 20px 40px rgba(155, 89, 182, 0.2)'
+    }}>
+      <ReactECharts 
+        option={option} 
+        style={{ height: '800px', width: '100%' }}
+        opts={{ renderer: 'canvas' }}
+      />
+      
+      <div style={{ 
+        maxWidth: '900px', 
+        margin: '24px auto 0', 
+        padding: '20px',
+        background: 'rgba(255, 255, 255, 0.05)',
+        borderRadius: '12px',
+        border: '1px solid rgba(255, 255, 255, 0.1)',
+        backdropFilter: 'blur(10px)'
+      }}>
+        <h4 style={{ 
+          color: '#9B59B6', 
+          marginBottom: '12px',
+          fontSize: '18px',
+          fontWeight: 'bold'
+        }}>
+          🎯 Strategic Rate Intelligence
+        </h4>
+        <p style={{ 
+          color: 'rgba(255, 255, 255, 0.9)', 
+          lineHeight: '1.7',
+          fontSize: '14px',
+          margin: 0
+        }}>
+          This comprehensive rate analysis reveals market positioning opportunities across all skill tiers. 
+          Each segment represents a distinct market category with unique characteristics and competition levels. 
+          Position your pricing strategically within your expertise tier, target underserved premium segments, 
+          and understand competitive density to maximize your earning potential while maintaining market competitiveness.
         </p>
       </div>
     </div>
