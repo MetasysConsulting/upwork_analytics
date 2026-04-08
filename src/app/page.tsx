@@ -30,6 +30,9 @@ export default function Home() {
   const [isAuthorized, setIsAuthorized] = useState(false)
   const [userEmail, setUserEmail] = useState<string | null>(null)
   const [loginEmail, setLoginEmail] = useState('')
+  const [loginPassword, setLoginPassword] = useState('')
+  const [authMode, setAuthMode] = useState<'signin' | 'signup'>('signin')
+  const [authSubmitting, setAuthSubmitting] = useState(false)
   const [authMessage, setAuthMessage] = useState<string | null>(null)
   const [authError, setAuthError] = useState<string | null>(null)
 
@@ -110,28 +113,39 @@ export default function Home() {
     fetchTotalCount()
   }, [fromDate, isAuthorized])
 
-  const handleMagicLinkLogin = async () => {
+  const handleEmailPasswordAuth = async () => {
     setAuthError(null)
     setAuthMessage(null)
+    setAuthSubmitting(true)
     const normalized = loginEmail.trim().toLowerCase()
-    if (!normalized) {
-      setAuthError('Please enter your email.')
+    if (!normalized || !loginPassword) {
+      setAuthError('Please enter both email and password.')
+      setAuthSubmitting(false)
       return
     }
 
-    const { error } = await supabase.auth.signInWithOtp({
-      email: normalized,
-      options: {
-        emailRedirectTo: window.location.origin
-      }
-    })
+    const { error } = authMode === 'signin'
+      ? await supabase.auth.signInWithPassword({
+          email: normalized,
+          password: loginPassword
+        })
+      : await supabase.auth.signUp({
+          email: normalized,
+          password: loginPassword
+        })
 
     if (error) {
       setAuthError(error.message)
+      setAuthSubmitting(false)
       return
     }
 
-    setAuthMessage('Magic link sent. Check your inbox and open the link to continue.')
+    if (authMode === 'signup') {
+      setAuthMessage('Account created. If email confirmation is enabled, verify your email and then sign in.')
+    } else {
+      setAuthMessage('Signed in successfully.')
+    }
+    setAuthSubmitting(false)
   }
 
   const handleSignOut = async () => {
@@ -187,7 +201,7 @@ export default function Home() {
         <Paper sx={{ p: 4, maxWidth: 520, width: '100%', textAlign: 'center' }}>
           <Typography variant="h4" sx={{ mb: 1, fontWeight: 700 }}>Upwork Analytics</Typography>
           <Typography variant="body1" color="text.secondary" sx={{ mb: 3 }}>
-            Sign in with a magic link to continue.
+            Sign in with email and password to continue.
           </Typography>
           <Stack spacing={2}>
             <TextField
@@ -197,8 +211,31 @@ export default function Home() {
               onChange={(e) => setLoginEmail(e.target.value)}
               fullWidth
             />
-            <Button variant="contained" size="large" onClick={handleMagicLinkLogin}>
-              Send Magic Link
+            <TextField
+              type="password"
+              label="Password"
+              value={loginPassword}
+              onChange={(e) => setLoginPassword(e.target.value)}
+              fullWidth
+            />
+            <Stack direction="row" spacing={1} sx={{ justifyContent: 'center' }}>
+              <Button
+                size="small"
+                variant={authMode === 'signin' ? 'contained' : 'outlined'}
+                onClick={() => setAuthMode('signin')}
+              >
+                Sign In
+              </Button>
+              <Button
+                size="small"
+                variant={authMode === 'signup' ? 'contained' : 'outlined'}
+                onClick={() => setAuthMode('signup')}
+              >
+                Sign Up
+              </Button>
+            </Stack>
+            <Button variant="contained" size="large" onClick={handleEmailPasswordAuth} disabled={authSubmitting}>
+              {authSubmitting ? 'Please wait...' : authMode === 'signin' ? 'Sign In' : 'Create Account'}
             </Button>
             {authMessage && (
               <Typography variant="body2" color="success.main">{authMessage}</Typography>
