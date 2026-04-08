@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { Box, Container, useTheme, CircularProgress, Typography, Button, Paper, Stack } from '@mui/material'
+import { Box, Container, useTheme, CircularProgress, Typography, Button, Paper, Stack, TextField } from '@mui/material'
 import { supabase } from '@/lib/supabase'
 
 // Import chart components (keeping existing charts for now)
@@ -29,6 +29,9 @@ export default function Home() {
   const [authLoading, setAuthLoading] = useState(true)
   const [isAuthorized, setIsAuthorized] = useState(false)
   const [userEmail, setUserEmail] = useState<string | null>(null)
+  const [loginEmail, setLoginEmail] = useState('')
+  const [authMessage, setAuthMessage] = useState<string | null>(null)
+  const [authError, setAuthError] = useState<string | null>(null)
 
   const getFromDateForRange = (range: TimeRange): string => {
     const now = new Date()
@@ -107,11 +110,28 @@ export default function Home() {
     fetchTotalCount()
   }, [fromDate, isAuthorized])
 
-  const handleGoogleLogin = async () => {
-    await supabase.auth.signInWithOAuth({
-      provider: 'google',
-      options: { redirectTo: window.location.origin }
+  const handleMagicLinkLogin = async () => {
+    setAuthError(null)
+    setAuthMessage(null)
+    const normalized = loginEmail.trim().toLowerCase()
+    if (!normalized) {
+      setAuthError('Please enter your email.')
+      return
+    }
+
+    const { error } = await supabase.auth.signInWithOtp({
+      email: normalized,
+      options: {
+        emailRedirectTo: window.location.origin
+      }
     })
+
+    if (error) {
+      setAuthError(error.message)
+      return
+    }
+
+    setAuthMessage('Magic link sent. Check your inbox and open the link to continue.')
   }
 
   const handleSignOut = async () => {
@@ -167,11 +187,26 @@ export default function Home() {
         <Paper sx={{ p: 4, maxWidth: 520, width: '100%', textAlign: 'center' }}>
           <Typography variant="h4" sx={{ mb: 1, fontWeight: 700 }}>Upwork Analytics</Typography>
           <Typography variant="body1" color="text.secondary" sx={{ mb: 3 }}>
-            Sign in with Google to continue.
+            Sign in with a magic link to continue.
           </Typography>
-          <Button variant="contained" size="large" onClick={handleGoogleLogin}>
-            Continue with Google
-          </Button>
+          <Stack spacing={2}>
+            <TextField
+              type="email"
+              label="Email"
+              value={loginEmail}
+              onChange={(e) => setLoginEmail(e.target.value)}
+              fullWidth
+            />
+            <Button variant="contained" size="large" onClick={handleMagicLinkLogin}>
+              Send Magic Link
+            </Button>
+            {authMessage && (
+              <Typography variant="body2" color="success.main">{authMessage}</Typography>
+            )}
+            {authError && (
+              <Typography variant="body2" color="error.main">{authError}</Typography>
+            )}
+          </Stack>
         </Paper>
       </Box>
     )
