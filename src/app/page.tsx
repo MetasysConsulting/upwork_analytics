@@ -1,8 +1,10 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { Box, Container, useTheme, CircularProgress, Typography, Button, Paper, Stack, TextField } from '@mui/material'
+import { Box, Container, useTheme, CircularProgress, Typography, Button, Paper, Stack } from '@mui/material'
 import { supabase } from '@/lib/supabase'
+import { useKindeBrowserClient } from '@kinde-oss/kinde-auth-nextjs'
+import { LoginLink, RegisterLink, LogoutLink } from '@kinde-oss/kinde-auth-nextjs/components'
 
 // Import chart components (keeping existing charts for now)
 import JobsOverTimeChart from '@/components/analytics/JobsOverTimeChart'
@@ -29,12 +31,7 @@ export default function Home() {
   const [authLoading, setAuthLoading] = useState(true)
   const [isAuthorized, setIsAuthorized] = useState(false)
   const [userEmail, setUserEmail] = useState<string | null>(null)
-  const [loginEmail, setLoginEmail] = useState('')
-  const [loginPassword, setLoginPassword] = useState('')
-  const [authMode, setAuthMode] = useState<'signin' | 'signup'>('signin')
-  const [authSubmitting, setAuthSubmitting] = useState(false)
-  const [authMessage, setAuthMessage] = useState<string | null>(null)
-  const [authError, setAuthError] = useState<string | null>(null)
+  const { user, isAuthenticated, isLoading: kindeLoading } = useKindeBrowserClient()
 
   const getFromDateForRange = (range: TimeRange): string => {
     const now = new Date()
@@ -75,25 +72,26 @@ export default function Home() {
   }
 
   useEffect(() => {
-    async function bootstrapAuth() {
+    async function syncAuth() {
+      if (kindeLoading) {
+        setAuthLoading(true)
+        return
+      }
+
+      if (!isAuthenticated) {
+        setUserEmail(null)
+        setIsAuthorized(false)
+        setAuthLoading(false)
+        return
+      }
+
       setAuthLoading(true)
-      const { data: sessionData } = await supabase.auth.getSession()
-      await verifyAuthorization(sessionData.session?.user?.email)
+      await verifyAuthorization(user?.email || null)
       setAuthLoading(false)
     }
 
-    bootstrapAuth()
-
-    const { data: listener } = supabase.auth.onAuthStateChange(async (_event, session) => {
-      setAuthLoading(true)
-      await verifyAuthorization(session?.user?.email)
-      setAuthLoading(false)
-    })
-
-    return () => {
-      listener.subscription.unsubscribe()
-    }
-  }, [])
+    syncAuth()
+  }, [kindeLoading, isAuthenticated, user?.email])
 
   // Fetch total job count for sidebar based on selected range
   useEffect(() => {
@@ -112,45 +110,6 @@ export default function Home() {
     }
     fetchTotalCount()
   }, [fromDate, isAuthorized])
-
-  const handleEmailPasswordAuth = async () => {
-    setAuthError(null)
-    setAuthMessage(null)
-    setAuthSubmitting(true)
-    const normalized = loginEmail.trim().toLowerCase()
-    if (!normalized || !loginPassword) {
-      setAuthError('Please enter both email and password.')
-      setAuthSubmitting(false)
-      return
-    }
-
-    const { error } = authMode === 'signin'
-      ? await supabase.auth.signInWithPassword({
-          email: normalized,
-          password: loginPassword
-        })
-      : await supabase.auth.signUp({
-          email: normalized,
-          password: loginPassword
-        })
-
-    if (error) {
-      setAuthError(error.message)
-      setAuthSubmitting(false)
-      return
-    }
-
-    if (authMode === 'signup') {
-      setAuthMessage('Account created. If email confirmation is enabled, verify your email and then sign in.')
-    } else {
-      setAuthMessage('Signed in successfully.')
-    }
-    setAuthSubmitting(false)
-  }
-
-  const handleSignOut = async () => {
-    await supabase.auth.signOut()
-  }
 
   const theme = useTheme()
   const [isMobile, setIsMobile] = useState(false)
@@ -201,48 +160,15 @@ export default function Home() {
         <Paper sx={{ p: 4, maxWidth: 520, width: '100%', textAlign: 'center' }}>
           <Typography variant="h4" sx={{ mb: 1, fontWeight: 700 }}>Upwork Analytics</Typography>
           <Typography variant="body1" color="text.secondary" sx={{ mb: 3 }}>
-            Sign in with email and password to continue.
+            Sign in with Kinde to continue.
           </Typography>
-          <Stack spacing={2}>
-            <TextField
-              type="email"
-              label="Email"
-              value={loginEmail}
-              onChange={(e) => setLoginEmail(e.target.value)}
-              fullWidth
-            />
-            <TextField
-              type="password"
-              label="Password"
-              value={loginPassword}
-              onChange={(e) => setLoginPassword(e.target.value)}
-              fullWidth
-            />
-            <Stack direction="row" spacing={1} sx={{ justifyContent: 'center' }}>
-              <Button
-                size="small"
-                variant={authMode === 'signin' ? 'contained' : 'outlined'}
-                onClick={() => setAuthMode('signin')}
-              >
-                Sign In
-              </Button>
-              <Button
-                size="small"
-                variant={authMode === 'signup' ? 'contained' : 'outlined'}
-                onClick={() => setAuthMode('signup')}
-              >
-                Sign Up
-              </Button>
-            </Stack>
-            <Button variant="contained" size="large" onClick={handleEmailPasswordAuth} disabled={authSubmitting}>
-              {authSubmitting ? 'Please wait...' : authMode === 'signin' ? 'Sign In' : 'Create Account'}
+          <Stack direction="row" spacing={2} sx={{ justifyContent: 'center' }}>
+            <Button variant="contained" size="large" component={LoginLink}>
+              Sign In
             </Button>
-            {authMessage && (
-              <Typography variant="body2" color="success.main">{authMessage}</Typography>
-            )}
-            {authError && (
-              <Typography variant="body2" color="error.main">{authError}</Typography>
-            )}
+            <Button variant="outlined" size="large" component={RegisterLink}>
+              Sign Up
+            </Button>
           </Stack>
         </Paper>
       </Box>
@@ -260,9 +186,7 @@ export default function Home() {
           <Typography variant="body2" color="text.secondary" sx={{ mb: 3 }}>
             Signed in as: {userEmail}
           </Typography>
-          <Button variant="outlined" onClick={handleSignOut}>
-            Sign Out
-          </Button>
+          <Button variant="outlined" component={LogoutLink}>Sign Out</Button>
         </Paper>
       </Box>
     )
