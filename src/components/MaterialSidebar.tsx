@@ -253,7 +253,7 @@ export default function MaterialSidebar({
                 sx={{ height: 20, fontSize: '0.75rem' }}
               />
             </Stack>
-            {onTimeRangeChange && activeTab !== 'jobs' && (
+            {onTimeRangeChange && (
               <Stack direction="row" spacing={0.75} sx={{ mt: 1.25, flexWrap: 'wrap', gap: 0.75 }}>
                 {[
                   { id: '1w', label: '1W' },

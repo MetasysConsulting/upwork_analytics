@@ -1,11 +1,25 @@
 import { NextResponse } from 'next/server'
 import { supabase } from '@/lib/supabase'
 
-export async function GET() {
+export async function GET(request: Request) {
   try {
+    const { searchParams } = new URL(request.url)
+    const from_date = searchParams.get('from_date')
+
+    const totalQuery = supabase
+      .from('scraped_jobs')
+      .select('id', { count: 'exact', head: true })
+
+    const completeQuery = supabase
+      .from('scraped_jobs')
+      .select('id', { count: 'exact', head: true })
+      .not('title', 'is', null)
+      .not('client_location', 'is', null)
+      .not('budget_amount', 'is', null)
+
     const [totalResult, completeResult] = await Promise.all([
-      supabase.rpc('get_total_job_count'),
-      supabase.rpc('get_total_complete_job_count')
+      from_date ? totalQuery.gte('created_at', from_date) : totalQuery,
+      from_date ? completeQuery.gte('created_at', from_date) : completeQuery
     ])
 
     if (totalResult.error || completeResult.error) {
@@ -17,8 +31,8 @@ export async function GET() {
     }
 
     return NextResponse.json({
-      total: totalResult.data || 0,
-      complete: completeResult.data || 0
+      total: totalResult.count || 0,
+      complete: completeResult.count || 0
     })
   } catch (error: any) {
     console.error('Error in total-count API:', error)

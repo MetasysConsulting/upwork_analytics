@@ -52,7 +52,12 @@ import ProposalModal from './ProposalModal'
 
 const JOBS_PER_PAGE = 100
 
-export default function MaterialJobsList() {
+interface MaterialJobsListProps {
+  fromDate?: string
+  timeRange?: '1w' | '1m' | '3m' | '6m' | '1y'
+}
+
+export default function MaterialJobsList({ fromDate, timeRange = '1m' }: MaterialJobsListProps) {
   const theme = useTheme()
   const [jobs, setJobs] = useState<ScrapedJob[]>([])
   const [loading, setLoading] = useState(true)
@@ -68,22 +73,9 @@ export default function MaterialJobsList() {
   const [proposalLoading, setProposalLoading] = useState(false)
   const [proposalError, setProposalError] = useState<string | null>(null)
 
-  // Fetch total job count
   useEffect(() => {
-    async function fetchTotalCount() {
-      try {
-        const response = await fetch('/api/metrics/total-count')
-        const result = await response.json()
-        if (result.total !== undefined) {
-          setTotalJobs(result.total)
-          setTotalCompleteJobs(result.complete || 0)
-        }
-      } catch (error) {
-        console.error('Error fetching total count:', error)
-      }
-    }
-    fetchTotalCount()
-  }, [])
+    setCurrentPage(1)
+  }, [fromDate])
 
   // Fetch jobs with pagination
   useEffect(() => {
@@ -94,11 +86,17 @@ export default function MaterialJobsList() {
         const from = (currentPage - 1) * JOBS_PER_PAGE
         const to = from + JOBS_PER_PAGE - 1
         
-        const { data, error, count } = await supabase
+        let query = supabase
           .from('scraped_jobs')
           .select('*', { count: 'exact' })
           .order('created_at', { ascending: false })
           .range(from, to)
+
+        if (fromDate) {
+          query = query.gte('created_at', fromDate)
+        }
+
+        const { data, error, count } = await query
 
         if (error) {
           console.error('Error fetching jobs:', error)
@@ -114,13 +112,26 @@ export default function MaterialJobsList() {
         
       } catch (error) {
         console.error('Unexpected error:', error)
+        try {
+          const countUrl = fromDate
+            ? `/api/metrics/total-count?from_date=${encodeURIComponent(fromDate)}`
+            : '/api/metrics/total-count'
+          const countResponse = await fetch(countUrl)
+          const countResult = await countResponse.json()
+          if (countResult.total !== undefined) {
+            setTotalJobs(countResult.total)
+            setTotalCompleteJobs(countResult.complete || 0)
+          }
+        } catch (countError) {
+          console.error('Error fetching range counts:', countError)
+        }
       } finally {
         setLoading(false)
       }
     }
 
     fetchJobs()
-  }, [currentPage])
+  }, [currentPage, fromDate])
 
   // Helper functions
   const parseSkills = (skillsData: any): string[] => {
@@ -311,7 +322,7 @@ export default function MaterialJobsList() {
               Job Opportunities
             </Typography>
             <Typography variant="body1" color="text.secondary" gutterBottom>
-              Showing {jobs.length} jobs (Page {currentPage} of {Math.ceil(totalJobs / JOBS_PER_PAGE)})
+              Showing {jobs.length} jobs ({timeRange.toUpperCase()} range) (Page {currentPage} of {Math.max(1, Math.ceil(totalJobs / JOBS_PER_PAGE))})
             </Typography>
           </Box>
           <Box sx={{ textAlign: 'right' }}>

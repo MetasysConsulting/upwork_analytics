@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { Box, Container, useTheme, CircularProgress, Typography, Button, Stack } from '@mui/material'
+import { Box, Container, useTheme, CircularProgress, Typography } from '@mui/material'
 
 // Import chart components (keeping existing charts for now)
 import JobsOverTimeChart from '@/components/analytics/JobsOverTimeChart'
@@ -27,22 +27,6 @@ export default function Home() {
   const [loading, setLoading] = useState(false)
   const [timeRange, setTimeRange] = useState<TimeRange>('1m')
 
-  // Fetch total job count for sidebar
-  useEffect(() => {
-    async function fetchTotalCount() {
-      try {
-        const response = await fetch('/api/metrics/total-count')
-        const result = await response.json()
-        if (result.total !== undefined) {
-          setTotalJobCount(result.total)
-        }
-      } catch (error) {
-        console.error('Error fetching total count:', error)
-      }
-    }
-    fetchTotalCount()
-  }, [])
-
   const getFromDateForRange = (range: TimeRange): string => {
     const now = new Date()
     const start = new Date(now)
@@ -55,6 +39,22 @@ export default function Home() {
   }
 
   const fromDate = getFromDateForRange(timeRange)
+
+  // Fetch total job count for sidebar based on selected range
+  useEffect(() => {
+    async function fetchTotalCount() {
+      try {
+        const response = await fetch(`/api/metrics/total-count?from_date=${encodeURIComponent(fromDate)}`)
+        const result = await response.json()
+        if (result.total !== undefined) {
+          setTotalJobCount(result.total)
+        }
+      } catch (error) {
+        console.error('Error fetching total count:', error)
+      }
+    }
+    fetchTotalCount()
+  }, [fromDate])
 
   const theme = useTheme()
   const [isMobile, setIsMobile] = useState(false)
@@ -127,7 +127,7 @@ export default function Home() {
         >
           {activeTab === 'jobs' && (
             <Box sx={{ width: '100%', maxWidth: '1400px' }}>
-              <MaterialJobsList />
+              <MaterialJobsList fromDate={fromDate} timeRange={timeRange} />
             </Box>
           )}
           
