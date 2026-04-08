@@ -46,7 +46,10 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql;
 
-CREATE OR REPLACE FUNCTION get_budget_analysis(from_date TIMESTAMPTZ DEFAULT NULL)
+CREATE OR REPLACE FUNCTION get_budget_analysis(
+  from_date TIMESTAMPTZ DEFAULT NULL,
+  budget_mode TEXT DEFAULT 'all'
+)
 RETURNS TABLE (
   budget_range TEXT,
   job_count BIGINT,
@@ -70,7 +73,12 @@ BEGIN
     ) nums ON TRUE
     WHERE cj.budget_amount IS NOT NULL
       AND trim(cj.budget_amount) <> ''
-      AND (from_date IS NULL OR created_at >= from_date)
+      AND (from_date IS NULL OR cj.created_at >= from_date)
+      AND (
+        budget_mode = 'all'
+        OR (budget_mode = 'fixed' AND (cj.budget_type IS NULL OR cj.budget_type NOT ILIKE 'hourly'))
+        OR (budget_mode = 'hourly' AND cj.budget_type ILIKE 'hourly')
+      )
   ),
   normalized AS (
     SELECT

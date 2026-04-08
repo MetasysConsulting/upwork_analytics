@@ -2,7 +2,7 @@
 
 import ReactECharts from 'echarts-for-react'
 import { useState, useEffect } from 'react'
-import { CircularProgress, Box, Typography } from '@mui/material'
+import { CircularProgress, Box, Typography, Stack, Button } from '@mui/material'
 
 interface BudgetAnalysisChartProps {
   jobs?: any[]
@@ -19,13 +19,16 @@ export default function BudgetAnalysisChart({ fromDate }: BudgetAnalysisChartPro
   const [budgetData, setBudgetData] = useState<BudgetRangeData[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  const [budgetMode, setBudgetMode] = useState<'all' | 'fixed' | 'hourly'>('all')
 
   useEffect(() => {
     async function fetchMetrics() {
       try {
         setLoading(true)
-        const query = fromDate ? `?from_date=${encodeURIComponent(fromDate)}` : ''
-        const response = await fetch(`/api/metrics/budget-analysis${query}`)
+        const params = new URLSearchParams()
+        if (fromDate) params.set('from_date', fromDate)
+        params.set('budget_mode', budgetMode)
+        const response = await fetch(`/api/metrics/budget-analysis?${params.toString()}`)
         const result = await response.json()
 
         if (!response.ok) {
@@ -51,7 +54,7 @@ export default function BudgetAnalysisChart({ fromDate }: BudgetAnalysisChartPro
     }
 
     fetchMetrics()
-  }, [fromDate])
+  }, [fromDate, budgetMode])
 
   if (loading) {
     return (
@@ -86,22 +89,22 @@ export default function BudgetAnalysisChart({ fromDate }: BudgetAnalysisChartPro
   }
 
   // Map budget ranges from API to chart format
-  const rangeMapping: Record<string, { icon: string; color: string; description: string }> = {
-    'Fixed: < $100': { icon: '🔧', color: '#FF6B6B', description: 'Quick tasks & fixes' },
-    'Fixed: $100-$500': { icon: '📱', color: '#FFB347', description: 'Short-term fixed work' },
-    'Fixed: $500-$1,000': { icon: '💼', color: '#4ECDC4', description: 'Standard fixed projects' },
-    'Fixed: $1,000-$5,000': { icon: '🏢', color: '#45B7D1', description: 'Major fixed deliverables' },
-    'Fixed: $5,000+': { icon: '👑', color: '#FD79A8', description: 'High-value fixed contracts' },
-    'Hourly: < $15/hr': { icon: '⏱️', color: '#7C3AED', description: 'Entry hourly rates' },
-    'Hourly: $15-$25/hr': { icon: '🟣', color: '#8B5CF6', description: 'Developing hourly range' },
-    'Hourly: $25-$40/hr': { icon: '🔵', color: '#3B82F6', description: 'Core market hourly range' },
-    'Hourly: $40-$60/hr': { icon: '🟢', color: '#10B981', description: 'Experienced hourly range' },
-    'Hourly: $60+/hr': { icon: '💎', color: '#F59E0B', description: 'Premium hourly rates' },
-    'Unknown': { icon: '❓', color: '#6B7280', description: 'Unspecified budget' }
+  const rangeMapping: Record<string, { color: string; description: string; order: number }> = {
+    'Fixed: < $100': { color: '#FF6B6B', description: 'Quick tasks and fixes', order: 1 },
+    'Fixed: $100-$500': { color: '#FFB347', description: 'Short-term fixed work', order: 2 },
+    'Fixed: $500-$1,000': { color: '#4ECDC4', description: 'Standard fixed projects', order: 3 },
+    'Fixed: $1,000-$5,000': { color: '#45B7D1', description: 'Major fixed deliverables', order: 4 },
+    'Fixed: $5,000+': { color: '#FD79A8', description: 'High-value fixed contracts', order: 5 },
+    'Hourly: < $15/hr': { color: '#7C3AED', description: 'Entry hourly rates', order: 6 },
+    'Hourly: $15-$25/hr': { color: '#8B5CF6', description: 'Developing hourly range', order: 7 },
+    'Hourly: $25-$40/hr': { color: '#3B82F6', description: 'Core market hourly range', order: 8 },
+    'Hourly: $40-$60/hr': { color: '#10B981', description: 'Experienced hourly range', order: 9 },
+    'Hourly: $60+/hr': { color: '#F59E0B', description: 'Premium hourly rates', order: 10 },
+    'Unknown': { color: '#6B7280', description: 'Unspecified budget', order: 99 }
   }
 
   const rangeCounts = budgetData.map(item => {
-    const mapping = rangeMapping[item.budget_range] || { icon: '📊', color: '#9B59B6', description: 'Other' }
+    const mapping = rangeMapping[item.budget_range] || { color: '#9B59B6', description: 'Other', order: 98 }
     const totalJobs = budgetData.reduce((sum, r) => sum + Number(r.job_count || 0), 0)
     
     return {
@@ -111,7 +114,7 @@ export default function BudgetAnalysisChart({ fromDate }: BudgetAnalysisChartPro
       avgBudget: Math.round(Number(item.avg_budget || 0)),
       ...mapping
     }
-  }).filter(range => range.count > 0)
+  }).filter(range => range.count > 0).sort((a, b) => a.order - b.order)
 
   if (rangeCounts.length === 0) {
     return (
@@ -140,8 +143,8 @@ export default function BudgetAnalysisChart({ fromDate }: BudgetAnalysisChartPro
   const option = {
     backgroundColor: '#0a0e1a',
     title: {
-      text: '💰 Project Budget Landscape',
-      subtext: `Comprehensive analysis of ${totalProjects} projects • Avg Value: $${avgProjectValue.toLocaleString()}`,
+      text: 'Project Budget Landscape',
+      subtext: `Analysis of ${totalProjects} projects • Avg Value: $${avgProjectValue.toLocaleString()}`,
       left: 'center',
       top: '3%',
       textStyle: {
@@ -176,17 +179,16 @@ export default function BudgetAnalysisChart({ fromDate }: BudgetAnalysisChartPro
         return `
           <div style="padding: 18px; border-radius: 8px; background: linear-gradient(135deg, ${rangeInfo.color}20, ${rangeInfo.color}08);">
             <div style="text-align: center; margin-bottom: 12px;">
-              <span style="font-size: 28px;">${rangeInfo.icon}</span>
-            </div>
-            <strong style="color: ${rangeInfo.color}; font-size: 18px; display: block; margin-bottom: 12px;">${rangeInfo.name}</strong>
-            <div style="margin: 10px 0;">
-              <span style="color: #4ECDC4;">📊 Projects:</span> <span style="color: #ffffff; font-weight: bold;">${rangeInfo.count}</span>
+              <span style="font-size: 16px; color: ${rangeInfo.color}; font-weight: 700;">${rangeInfo.name}</span>
             </div>
             <div style="margin: 10px 0;">
-              <span style="color: #FF6B6B;">📈 Market Share:</span> <span style="color: #ffffff; font-weight: bold;">${rangeInfo.percentage.toFixed(1)}%</span>
+              <span style="color: #4ECDC4;">Projects:</span> <span style="color: #ffffff; font-weight: bold;">${rangeInfo.count}</span>
             </div>
             <div style="margin: 10px 0;">
-              <span style="color: #A29BFE;">💎 Avg Budget:</span> <span style="color: #ffffff; font-weight: bold;">$${rangeInfo.avgBudget.toLocaleString()}</span>
+              <span style="color: #FF6B6B;">Market Share:</span> <span style="color: #ffffff; font-weight: bold;">${rangeInfo.percentage.toFixed(1)}%</span>
+            </div>
+            <div style="margin: 10px 0;">
+              <span style="color: #A29BFE;">Avg Budget:</span> <span style="color: #ffffff; font-weight: bold;">$${rangeInfo.avgBudget.toLocaleString()}</span>
             </div>
             <div style="margin: 10px 0; padding-top: 8px; border-top: 1px solid rgba(255,255,255,0.1);">
               <span style="color: #FFC107; font-style: italic;">${rangeInfo.description}</span>
@@ -234,7 +236,7 @@ export default function BudgetAnalysisChart({ fromDate }: BudgetAnalysisChartPro
     },
     yAxis: {
       type: 'category',
-      data: rangeCounts.map(range => `${range.icon} ${range.name}`),
+      data: rangeCounts.map(range => range.name),
       axisLabel: {
         color: '#ffffff',
         fontSize: 11,
@@ -323,6 +325,11 @@ export default function BudgetAnalysisChart({ fromDate }: BudgetAnalysisChartPro
       border: '1px solid rgba(255, 255, 255, 0.1)',
       boxShadow: '0 20px 40px rgba(155, 89, 182, 0.2)'
     }}>
+      <Stack direction="row" spacing={1} sx={{ justifyContent: 'center', mb: 2 }}>
+        <Button size="small" variant={budgetMode === 'all' ? 'contained' : 'outlined'} onClick={() => setBudgetMode('all')}>All</Button>
+        <Button size="small" variant={budgetMode === 'fixed' ? 'contained' : 'outlined'} onClick={() => setBudgetMode('fixed')}>Fixed Price</Button>
+        <Button size="small" variant={budgetMode === 'hourly' ? 'contained' : 'outlined'} onClick={() => setBudgetMode('hourly')}>Hourly</Button>
+      </Stack>
       <ReactECharts 
         option={option} 
         style={{ height: '800px', width: '100%' }}
@@ -344,7 +351,7 @@ export default function BudgetAnalysisChart({ fromDate }: BudgetAnalysisChartPro
           fontSize: '18px',
           fontWeight: 'bold'
         }}>
-          🎯 Strategic Rate Intelligence
+          Strategic Rate Intelligence
         </h4>
         <p style={{ 
           color: 'rgba(255, 255, 255, 0.9)', 

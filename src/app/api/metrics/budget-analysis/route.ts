@@ -5,10 +5,12 @@ export async function GET(request: Request) {
   try {
     const { searchParams } = new URL(request.url)
     const from_date = searchParams.get('from_date')
+    const budget_mode = searchParams.get('budget_mode') || 'all'
 
     console.log('Fetching budget analysis from Supabase...')
     const { data, error } = await supabase.rpc('get_budget_analysis', {
-      from_date: from_date || null
+      from_date: from_date || null,
+      budget_mode
     })
 
     if (error) {
