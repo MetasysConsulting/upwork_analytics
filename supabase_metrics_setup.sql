@@ -56,23 +56,48 @@ BEGIN
   RETURN QUERY
   WITH parsed AS (
     SELECT
-      parse_numeric(budget_amount) AS amount
-    FROM complete_jobs
-    WHERE budget_amount IS NOT NULL
+      cj.budget_type,
+      cj.budget_amount,
+      nums.values AS numeric_values
+    FROM complete_jobs cj
+    LEFT JOIN LATERAL (
+      SELECT ARRAY_AGG((m[1])::NUMERIC) AS values
+      FROM regexp_matches(
+        regexp_replace(COALESCE(cj.budget_amount, ''), ',', '', 'g'),
+        '([0-9]+(?:\.[0-9]+)?)',
+        'g'
+      ) AS m
+    ) nums ON TRUE
+    WHERE cj.budget_amount IS NOT NULL
+      AND trim(cj.budget_amount) <> ''
       AND (from_date IS NULL OR created_at >= from_date)
+  ),
+  normalized AS (
+    SELECT
+      budget_type,
+      CASE
+        WHEN numeric_values IS NULL OR array_length(numeric_values, 1) IS NULL THEN NULL
+        ELSE numeric_values[array_length(numeric_values, 1)]
+      END AS amount
+    FROM parsed
   ),
   bucketed AS (
     SELECT
       CASE
         WHEN amount IS NULL THEN 'Unknown'
-        WHEN amount < 100 THEN '< $100'
-        WHEN amount < 500 THEN '$100-$500'
-        WHEN amount < 1000 THEN '$500-$1,000'
-        WHEN amount < 5000 THEN '$1,000-$5,000'
-        ELSE '$5,000+'
+        WHEN budget_type ILIKE 'hourly' AND amount < 15 THEN 'Hourly: < $15/hr'
+        WHEN budget_type ILIKE 'hourly' AND amount < 25 THEN 'Hourly: $15-$25/hr'
+        WHEN budget_type ILIKE 'hourly' AND amount < 40 THEN 'Hourly: $25-$40/hr'
+        WHEN budget_type ILIKE 'hourly' AND amount < 60 THEN 'Hourly: $40-$60/hr'
+        WHEN budget_type ILIKE 'hourly' THEN 'Hourly: $60+/hr'
+        WHEN amount < 100 THEN 'Fixed: < $100'
+        WHEN amount < 500 THEN 'Fixed: $100-$500'
+        WHEN amount < 1000 THEN 'Fixed: $500-$1,000'
+        WHEN amount < 5000 THEN 'Fixed: $1,000-$5,000'
+        ELSE 'Fixed: $5,000+'
       END AS budget_range,
       amount
-    FROM parsed
+    FROM normalized
   )
   SELECT
     bucketed.budget_range,

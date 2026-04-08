@@ -87,12 +87,16 @@ export default function BudgetAnalysisChart({ fromDate }: BudgetAnalysisChartPro
 
   // Map budget ranges from API to chart format
   const rangeMapping: Record<string, { icon: string; color: string; description: string }> = {
-    '< $100': { icon: '🔧', color: '#FF6B6B', description: 'Quick tasks & fixes' },
-    '$100-$500': { icon: '📱', color: '#FFB347', description: 'Short-term work' },
-    '< $500': { icon: '📱', color: '#FFB347', description: 'Short-term work' },
-    '$500-$1,000': { icon: '💼', color: '#4ECDC4', description: 'Standard projects' },
-    '$1,000-$5,000': { icon: '🏢', color: '#45B7D1', description: 'Major deliverables' },
-    '$5,000+': { icon: '👑', color: '#FD79A8', description: 'High-value contracts' },
+    'Fixed: < $100': { icon: '🔧', color: '#FF6B6B', description: 'Quick tasks & fixes' },
+    'Fixed: $100-$500': { icon: '📱', color: '#FFB347', description: 'Short-term fixed work' },
+    'Fixed: $500-$1,000': { icon: '💼', color: '#4ECDC4', description: 'Standard fixed projects' },
+    'Fixed: $1,000-$5,000': { icon: '🏢', color: '#45B7D1', description: 'Major fixed deliverables' },
+    'Fixed: $5,000+': { icon: '👑', color: '#FD79A8', description: 'High-value fixed contracts' },
+    'Hourly: < $15/hr': { icon: '⏱️', color: '#7C3AED', description: 'Entry hourly rates' },
+    'Hourly: $15-$25/hr': { icon: '🟣', color: '#8B5CF6', description: 'Developing hourly range' },
+    'Hourly: $25-$40/hr': { icon: '🔵', color: '#3B82F6', description: 'Core market hourly range' },
+    'Hourly: $40-$60/hr': { icon: '🟢', color: '#10B981', description: 'Experienced hourly range' },
+    'Hourly: $60+/hr': { icon: '💎', color: '#F59E0B', description: 'Premium hourly rates' },
     'Unknown': { icon: '❓', color: '#6B7280', description: 'Unspecified budget' }
   }
 
@@ -230,10 +234,7 @@ export default function BudgetAnalysisChart({ fromDate }: BudgetAnalysisChartPro
     },
     yAxis: {
       type: 'category',
-      data: rangeCounts.map(range => {
-        const [name, rangeText] = range.name.split(' (');
-        return `${range.icon} ${name}\n(${rangeText}`;
-      }),
+      data: rangeCounts.map(range => `${range.icon} ${range.name}`),
       axisLabel: {
         color: '#ffffff',
         fontSize: 11,
