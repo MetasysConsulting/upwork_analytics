@@ -5,7 +5,6 @@ import { useState, useEffect } from 'react'
 import { CircularProgress, Box, Typography, Stack, Button } from '@mui/material'
 
 interface BudgetAnalysisChartProps {
-  jobs?: any[]
   fromDate?: string
 }
 

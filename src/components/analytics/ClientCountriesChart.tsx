@@ -5,7 +5,6 @@ import { useState, useEffect } from 'react'
 import { CircularProgress, Box, Typography } from '@mui/material'
 
 interface ClientCountriesChartProps {
-  jobs?: any[]
   fromDate?: string
 }
 

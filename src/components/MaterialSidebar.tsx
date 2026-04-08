@@ -19,8 +19,8 @@ import {
   Paper,
   useTheme,
   useMediaQuery,
-  Collapse,
   Stack,
+  Button,
 } from '@mui/material'
 import {
   Work as WorkIcon,
@@ -33,16 +33,16 @@ import {
   Psychology as PsychologyIcon,
   ShowChart as ActivityIcon,
   Analytics as AnalyticsIcon,
-
   Menu as MenuIcon,
   ChevronLeft as ChevronLeftIcon,
-  Search as SearchIcon,
-  Notifications as NotificationsIcon,
-  Settings as SettingsIcon,
-  AccountCircle as AccountCircleIcon,
   StarBorder as StarBorderIcon,
+  Bolt as BoltIcon,
+  Logout as LogoutIcon,
+  AccountCircle as AccountCircleIcon,
 } from '@mui/icons-material'
 import { useThemeMode } from '../app/mui-theme-provider'
+import { useKindeBrowserClient } from '@kinde-oss/kinde-auth-nextjs'
+import { LogoutLink } from '@kinde-oss/kinde-auth-nextjs/components'
 
 interface MaterialSidebarProps {
   activeTab: string
@@ -57,7 +57,7 @@ interface MaterialSidebarProps {
 interface NavigationItem {
   id: string
   label: string
-  icon: React.ComponentType<any>
+  icon: React.ComponentType<{ style?: React.CSSProperties }>
   color: string
   description: string
   badge?: string
@@ -67,22 +67,18 @@ export default function MaterialSidebar({
   activeTab,
   onTabChange,
   jobCount,
-  timeRange = '1m',
+  timeRange = '3m',
   onTimeRangeChange,
-  open = true,
-  onToggle
 }: MaterialSidebarProps) {
   const theme = useTheme()
   const { mode } = useThemeMode()
   const isMobile = useMediaQuery(theme.breakpoints.down('md'))
   const [mobileOpen, setMobileOpen] = useState(false)
   const [collapsed, setCollapsed] = useState(false)
+  const { user } = useKindeBrowserClient()
 
-  // Auto-collapse on mobile
   useEffect(() => {
-    if (isMobile) {
-      setCollapsed(true)
-    }
+    if (isMobile) setCollapsed(true)
   }, [isMobile])
 
   const navigationItems: NavigationItem[] = [
@@ -92,7 +88,7 @@ export default function MaterialSidebar({
       icon: WorkIcon,
       color: theme.palette.primary.main,
       description: 'Browse latest opportunities',
-      badge: jobCount > 0 ? (jobCount > 99 ? '99+' : String(jobCount)) : undefined,
+      badge: jobCount > 0 ? (jobCount > 9999 ? `${Math.round(jobCount / 1000)}k+` : String(jobCount)) : undefined,
     },
     {
       id: 'high-profile-clients',
@@ -106,42 +102,49 @@ export default function MaterialSidebar({
       label: 'Market Trends',
       icon: TimelineIcon,
       color: theme.palette.info.main,
-      description: 'Job posting trends',
+      description: 'Job posting trends over time',
     },
     {
       id: 'premium-map',
       label: 'Premium Opportunity Map',
       icon: AssessmentIcon,
       color: theme.palette.success.main,
-      description: 'Strategic opportunity analysis',
+      description: 'Client spend vs. activity scatter',
     },
     {
       id: 'budget-analysis',
       label: 'Rate Intelligence',
       icon: PieChartIcon,
       color: theme.palette.warning.main,
-      description: 'Competitive rate distribution',
+      description: 'Fixed & hourly rate distribution',
     },
     {
       id: 'client-countries',
       label: 'Global Markets',
       icon: PublicIcon,
       color: theme.palette.secondary.main,
-      description: 'Geographic distribution',
+      description: 'Client geographic distribution',
     },
     {
       id: 'client-spending',
       label: 'Client Investment',
       icon: AttachMoneyIcon,
       color: theme.palette.success.main,
-      description: 'Spending patterns',
+      description: 'Client spending patterns',
     },
     {
       id: 'client-hire-rate',
-      label: 'Rate Intelligence',
+      label: 'Hiring Trends',
       icon: TrendingUpIcon,
       color: '#f59e0b',
-      description: 'Competitive rate analysis',
+      description: 'Client hire-rate analysis',
+    },
+    {
+      id: 'connects-required',
+      label: 'Connects Required',
+      icon: BoltIcon,
+      color: '#8b5cf6',
+      description: 'Connects cost distribution',
     },
     {
       id: 'interview-rate',
@@ -162,20 +165,19 @@ export default function MaterialSidebar({
       label: 'Activity Pulse',
       icon: ActivityIcon,
       color: '#06b6d4',
-      description: 'Data collection patterns',
+      description: 'Extraction patterns by hour',
     },
   ]
 
   const handleItemClick = (itemId: string) => {
     onTabChange(itemId)
-    if (isMobile) {
-      setMobileOpen(false)
-    }
+    if (isMobile) setMobileOpen(false)
   }
 
-  const handleDrawerToggle = () => {
-    setMobileOpen(!mobileOpen)
-  }
+  const userInitial = user?.given_name?.[0] ?? user?.email?.[0]?.toUpperCase() ?? '?'
+  const userDisplay = user?.given_name
+    ? `${user.given_name} ${user.family_name ?? ''}`.trim()
+    : user?.email ?? ''
 
   const sidebarContent = (
     <Box sx={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
@@ -204,14 +206,14 @@ export default function MaterialSidebar({
               </Box>
             </Stack>
           )}
-          
-          <Tooltip title={collapsed ? "Expand sidebar" : "Collapse sidebar"}>
+
+          <Tooltip title={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}>
             <IconButton
               size="small"
               onClick={() => setCollapsed(!collapsed)}
-              sx={{ 
+              sx={{
                 transition: 'all 0.2s ease',
-                transform: collapsed ? 'rotate(180deg)' : 'rotate(0deg)'
+                transform: collapsed ? 'rotate(180deg)' : 'rotate(0deg)',
               }}
             >
               {collapsed ? <MenuIcon /> : <ChevronLeftIcon />}
@@ -225,9 +227,10 @@ export default function MaterialSidebar({
             sx={{
               mt: 2,
               p: 1.5,
-              background: theme.palette.mode === 'dark' 
-                ? 'linear-gradient(135deg, rgba(34, 197, 94, 0.1) 0%, rgba(59, 130, 246, 0.1) 100%)'
-                : 'linear-gradient(135deg, rgba(34, 197, 94, 0.05) 0%, rgba(59, 130, 246, 0.05) 100%)',
+              background:
+                theme.palette.mode === 'dark'
+                  ? 'linear-gradient(135deg, rgba(34, 197, 94, 0.1) 0%, rgba(59, 130, 246, 0.1) 100%)'
+                  : 'linear-gradient(135deg, rgba(34, 197, 94, 0.05) 0%, rgba(59, 130, 246, 0.05) 100%)',
               border: `1px solid ${theme.palette.success.main}20`,
               borderRadius: 2,
             }}
@@ -247,21 +250,22 @@ export default function MaterialSidebar({
               </Typography>
               <Chip
                 size="small"
-                label={`${jobCount} jobs`}
+                label={`${jobCount.toLocaleString()} jobs`}
                 color="success"
                 variant="outlined"
                 sx={{ height: 20, fontSize: '0.75rem' }}
               />
             </Stack>
+
             {onTimeRangeChange && (
               <Stack direction="row" spacing={0.75} sx={{ mt: 1.25, flexWrap: 'wrap', gap: 0.75 }}>
-                {[
+                {([
                   { id: '1w', label: '1W' },
                   { id: '1m', label: '1M' },
                   { id: '3m', label: '3M' },
                   { id: '6m', label: '6M' },
                   { id: '1y', label: '1Y' },
-                ].map((item) => (
+                ] as const).map((item) => (
                   <Chip
                     key={item.id}
                     size="small"
@@ -269,7 +273,7 @@ export default function MaterialSidebar({
                     clickable
                     color={timeRange === item.id ? 'primary' : 'default'}
                     variant={timeRange === item.id ? 'filled' : 'outlined'}
-                    onClick={() => onTimeRangeChange(item.id as '1w' | '1m' | '3m' | '6m' | '1y')}
+                    onClick={() => onTimeRangeChange(item.id)}
                     sx={{ height: 22, fontSize: '0.7rem', fontWeight: 600 }}
                   />
                 ))}
@@ -285,14 +289,10 @@ export default function MaterialSidebar({
           {navigationItems.map((item) => {
             const Icon = item.icon
             const isActive = activeTab === item.id
-            
+
             return (
               <ListItem key={item.id} disablePadding>
-                <Tooltip 
-                  title={collapsed ? item.description : ''} 
-                  placement="right"
-                  arrow
-                >
+                <Tooltip title={collapsed ? item.description : ''} placement="right" arrow>
                   <ListItemButton
                     selected={isActive}
                     onClick={() => handleItemClick(item.id)}
@@ -303,27 +303,29 @@ export default function MaterialSidebar({
                       borderRadius: 1,
                       mb: 0.5,
                       '&.Mui-selected': {
-                        backgroundColor: theme.palette.mode === 'dark' 
-                          ? `${theme.palette.primary.main}20`
-                          : `${theme.palette.primary.main}10`,
+                        backgroundColor:
+                          theme.palette.mode === 'dark'
+                            ? `${theme.palette.primary.main}20`
+                            : `${theme.palette.primary.main}10`,
                         borderLeft: `3px solid ${theme.palette.primary.main}`,
                         '&:hover': {
-                          backgroundColor: theme.palette.mode === 'dark' 
-                            ? `${theme.palette.primary.main}30`
-                            : `${theme.palette.primary.main}15`,
+                          backgroundColor:
+                            theme.palette.mode === 'dark'
+                              ? `${theme.palette.primary.main}30`
+                              : `${theme.palette.primary.main}15`,
                         },
                       },
                     }}
                   >
                     <ListItemIcon sx={{ minWidth: collapsed ? 0 : 56 }}>
-                      <Icon 
-                        style={{ 
+                      <Icon
+                        style={{
                           color: isActive ? theme.palette.primary.main : item.color,
-                          fontSize: 20 
-                        }} 
+                          fontSize: 20,
+                        }}
                       />
                     </ListItemIcon>
-                    
+
                     {!collapsed && (
                       <>
                         <ListItemText
@@ -339,7 +341,7 @@ export default function MaterialSidebar({
                             color: 'text.secondary',
                           }}
                         />
-                        
+
                         {item.badge && (
                           <Badge
                             badgeContent={item.badge}
@@ -364,7 +366,54 @@ export default function MaterialSidebar({
         </List>
       </Box>
 
-
+      {/* Footer — user info + sign out */}
+      <Box sx={{ borderTop: `1px solid ${theme.palette.divider}`, p: collapsed ? 1 : 2 }}>
+        {collapsed ? (
+          <Tooltip title="Sign Out" placement="right" arrow>
+            <IconButton
+              size="small"
+              component={LogoutLink}
+              sx={{ color: 'text.secondary', mx: 'auto', display: 'flex' }}
+            >
+              <LogoutIcon fontSize="small" />
+            </IconButton>
+          </Tooltip>
+        ) : (
+          <Stack direction="row" alignItems="center" spacing={1.5}>
+            <Avatar
+              sx={{
+                width: 32,
+                height: 32,
+                fontSize: '0.875rem',
+                backgroundColor: theme.palette.primary.main,
+                flexShrink: 0,
+              }}
+            >
+              {userInitial}
+            </Avatar>
+            <Box sx={{ flex: 1, minWidth: 0 }}>
+              <Typography
+                variant="body2"
+                sx={{ fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}
+              >
+                {userDisplay}
+              </Typography>
+              <Typography
+                variant="caption"
+                color="text.secondary"
+                sx={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', display: 'block' }}
+              >
+                {user?.email}
+              </Typography>
+            </Box>
+            <Tooltip title="Sign Out">
+              <IconButton size="small" component={LogoutLink} sx={{ color: 'text.secondary', flexShrink: 0 }}>
+                <LogoutIcon fontSize="small" />
+              </IconButton>
+            </Tooltip>
+          </Stack>
+        )}
+      </Box>
     </Box>
   )
 
@@ -374,16 +423,11 @@ export default function MaterialSidebar({
       <Drawer
         variant="temporary"
         open={mobileOpen}
-        onClose={handleDrawerToggle}
-        ModalProps={{
-          keepMounted: true, // Better open performance on mobile.
-        }}
+        onClose={() => setMobileOpen(false)}
+        ModalProps={{ keepMounted: true }}
         sx={{
           display: { xs: 'block', md: 'none' },
-          '& .MuiDrawer-paper': {
-            boxSizing: 'border-box',
-            width: 280,
-          },
+          '& .MuiDrawer-paper': { boxSizing: 'border-box', width: 280 },
         }}
       >
         {sidebarContent}
@@ -415,7 +459,7 @@ export default function MaterialSidebar({
           color="inherit"
           aria-label="open drawer"
           edge="start"
-          onClick={handleDrawerToggle}
+          onClick={() => setMobileOpen(!mobileOpen)}
           sx={{
             position: 'fixed',
             top: 16,
@@ -423,9 +467,7 @@ export default function MaterialSidebar({
             zIndex: 1300,
             backgroundColor: theme.palette.background.paper,
             boxShadow: theme.shadows[2],
-            '&:hover': {
-              backgroundColor: theme.palette.action.hover,
-            },
+            '&:hover': { backgroundColor: theme.palette.action.hover },
           }}
         >
           <MenuIcon />
@@ -433,4 +475,4 @@ export default function MaterialSidebar({
       )}
     </>
   )
-} 
+}

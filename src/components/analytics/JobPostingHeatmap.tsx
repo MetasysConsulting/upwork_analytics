@@ -5,7 +5,6 @@ import { useState, useEffect } from 'react'
 import { CircularProgress, Box, Typography } from '@mui/material'
 
 interface JobPostingHeatmapProps {
-  jobs?: any[]
   fromDate?: string
 }
 
@@ -106,8 +105,8 @@ export default function JobPostingHeatmap({ fromDate }: JobPostingHeatmapProps) 
   const option = {
     backgroundColor: '#0a0e1a',
     title: {
-      text: '🕐 Hourly Activity Heatmap',
-      subtext: 'Job extraction patterns by day and hour • Find your peak productivity times',
+      text: 'Hourly Extraction Heatmap',
+      subtext: 'Job extraction patterns by day and hour (UTC) — find your peak data windows',
       left: 'center',
       top: '2%',
       textStyle: {
@@ -307,12 +306,8 @@ export default function JobPostingHeatmap({ fromDate }: JobPostingHeatmapProps) 
             fontWeight: '600',
             color: '#39D353',
             marginBottom: '8px',
-            display: 'flex',
-            alignItems: 'center',
-            gap: '8px'
           }}>
-            <span>��</span>
-            Peak Activity Time
+            Peak Extraction Time
           </div>
           <div style={{ 
             color: '#ffffff', 

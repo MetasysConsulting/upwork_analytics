@@ -1,8 +1,12 @@
 import { NextResponse } from 'next/server'
 import { supabase } from '@/lib/supabase'
+import { requireAuth } from '@/lib/api-auth'
 
 export async function GET(request: Request) {
   try {
+    const authError = await requireAuth()
+    if (authError) return authError
+
     const { searchParams } = new URL(request.url)
     const from_date = searchParams.get('from_date')
 

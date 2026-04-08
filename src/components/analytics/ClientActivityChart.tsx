@@ -5,7 +5,6 @@ import { useState, useEffect } from 'react'
 import { CircularProgress, Box, Typography } from '@mui/material'
 
 interface ClientActivityChartProps {
-  jobs?: any[]
   fromDate?: string
 }
 
@@ -124,8 +123,8 @@ export default function ClientActivityChart({ fromDate }: ClientActivityChartPro
   const option = {
     backgroundColor: '#0a0e1a',
     title: {
-      text: '🎯 Client Activity Landscape',
-      subtext: `Activity analysis of ${activityData.length} clients: Jobs Posted vs. Total Spending`,
+      text: 'Client Activity Landscape',
+      subtext: `${activityData.length} data points — Jobs Posted vs. Total Spending`,
       left: 'center',
       top: '3%',
       textStyle: {
@@ -328,7 +327,7 @@ export default function ClientActivityChart({ fromDate }: ClientActivityChartPro
           fontSize: '18px',
           fontWeight: 'bold'
         }}>
-          🎯 Activity Intelligence
+          Activity Intelligence
         </h4>
         <p style={{ 
           color: 'rgba(255, 255, 255, 0.9)', 

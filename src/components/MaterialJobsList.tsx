@@ -58,7 +58,7 @@ interface MaterialJobsListProps {
   highProfileOnly?: boolean
 }
 
-export default function MaterialJobsList({ fromDate, timeRange = '1m', highProfileOnly = false }: MaterialJobsListProps) {
+export default function MaterialJobsList({ fromDate, timeRange = '3m', highProfileOnly = false }: MaterialJobsListProps) {
   const theme = useTheme()
   const [jobs, setJobs] = useState<ScrapedJob[]>([])
   const [loading, setLoading] = useState(true)
@@ -67,80 +67,35 @@ export default function MaterialJobsList({ fromDate, timeRange = '1m', highProfi
   const [currentPage, setCurrentPage] = useState(1)
   const [totalJobs, setTotalJobs] = useState<number>(0)
   const [totalCompleteJobs, setTotalCompleteJobs] = useState<number>(0)
-  
-  // Proposal modal state
+
   const [proposalModalOpen, setProposalModalOpen] = useState(false)
   const [proposal, setProposal] = useState<string | null>(null)
   const [proposalLoading, setProposalLoading] = useState(false)
   const [proposalError, setProposalError] = useState<string | null>(null)
 
-  const locationKeywords = [
-    'united states', 'usa', 'us',
-    'united kingdom', 'uk',
-    'canada',
-    'australia',
-    'saudi', 'saudi arabia',
-    'europe', 'european',
-    'germany', 'france', 'netherlands', 'spain', 'italy', 'sweden', 'norway', 'denmark', 'switzerland', 'poland', 'belgium', 'austria', 'ireland', 'portugal', 'finland'
-  ]
-
-  const parseBudgetUpper = (budget: string | null): number => {
-    if (!budget) return 0
-    const nums = (budget.match(/\d[\d,]*(?:\.\d+)?/g) || [])
-      .map(v => Number(v.replace(/,/g, '')))
-      .filter(v => !Number.isNaN(v))
-    if (nums.length === 0) return 0
-    return Math.max(...nums)
-  }
-
-  const isHighProfileJob = (job: ScrapedJob): boolean => {
-    const location = (job.client_location || '').toLowerCase()
-    const locationMatch = locationKeywords.some(keyword => location.includes(keyword))
-    const reviewScore = Number(job.client_reviews_score || 0)
-    const rating = Number(job.client_rating || 0)
-    const reviewMatch = reviewScore > 4 || rating > 4
-    const budgetUpper = parseBudgetUpper(job.budget_amount)
-    const budgetMatch = budgetUpper > 35
-    return locationMatch && reviewMatch && budgetMatch
-  }
-
   useEffect(() => {
     setCurrentPage(1)
   }, [fromDate, highProfileOnly])
 
-  // Fetch jobs with pagination
+  // Fetch jobs — high-profile path uses backend RPC via API route
   useEffect(() => {
     async function fetchJobs() {
       try {
         setLoading(true)
-        
-        const from = (currentPage - 1) * JOBS_PER_PAGE
-        const to = from + JOBS_PER_PAGE - 1
 
         if (highProfileOnly) {
-          let highProfileQuery = supabase
-            .from('scraped_jobs')
-            .select('*')
-            .order('created_at', { ascending: false })
-            .limit(3000)
-
-          if (fromDate) {
-            highProfileQuery = highProfileQuery.gte('created_at', fromDate)
-          }
-
-          const { data, error } = await highProfileQuery
-
-          if (error) {
-            console.error('Error fetching high profile jobs:', error)
-            return
-          }
-
-          const allHighProfile = (data || []).filter(isHighProfileJob)
-          setTotalJobs(allHighProfile.length)
-          setTotalCompleteJobs(allHighProfile.length)
-          setJobs(allHighProfile.slice(from, to + 1))
+          const params = new URLSearchParams({ page: String(currentPage) })
+          if (fromDate) params.set('from_date', fromDate)
+          const response = await fetch(`/api/metrics/high-profile-jobs?${params}`)
+          const result = await response.json()
+          setJobs(result.data ?? [])
+          setTotalJobs(result.total ?? 0)
+          setTotalCompleteJobs(result.total ?? 0)
           return
         }
+
+        const from = (currentPage - 1) * JOBS_PER_PAGE
+        const to = from + JOBS_PER_PAGE - 1
 
         let query = supabase
           .from('scraped_jobs')
@@ -148,9 +103,7 @@ export default function MaterialJobsList({ fromDate, timeRange = '1m', highProfi
           .order('created_at', { ascending: false })
           .range(from, to)
 
-        if (fromDate) {
-          query = query.gte('created_at', fromDate)
-        }
+        if (fromDate) query = query.gte('created_at', fromDate)
 
         const { data, error, count } = await query
 
@@ -159,30 +112,10 @@ export default function MaterialJobsList({ fromDate, timeRange = '1m', highProfi
           return
         }
 
-        setJobs(data || [])
-        
-        // Update total if we got a count
-        if (count !== null) {
-          setTotalJobs(count)
-        }
-        
-      } catch (error) {
-        console.error('Unexpected error:', error)
-        if (!highProfileOnly) {
-          try {
-            const countUrl = fromDate
-              ? `/api/metrics/total-count?from_date=${encodeURIComponent(fromDate)}`
-              : '/api/metrics/total-count'
-            const countResponse = await fetch(countUrl)
-            const countResult = await countResponse.json()
-            if (countResult.total !== undefined) {
-              setTotalJobs(countResult.total)
-              setTotalCompleteJobs(countResult.complete || 0)
-            }
-          } catch (countError) {
-            console.error('Error fetching range counts:', countError)
-          }
-        }
+        setJobs(data ?? [])
+        if (count !== null) setTotalJobs(count)
+      } catch (err) {
+        console.error('Unexpected error fetching jobs:', err)
       } finally {
         setLoading(false)
       }
