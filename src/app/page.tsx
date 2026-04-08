@@ -95,6 +95,8 @@ export default function Home() {
         activeTab={activeTab}
         onTabChange={(tab: string) => setActiveTab(tab as any)}
         jobCount={totalJobCount}
+        timeRange={timeRange}
+        onTimeRangeChange={setTimeRange}
       />
 
       {/* Main Content */}
@@ -123,26 +125,6 @@ export default function Home() {
             alignItems: 'center'
           }}
         >
-          {activeTab !== 'jobs' && (
-            <Box sx={{ width: '100%', maxWidth: '1400px', mb: 3 }}>
-              <Box sx={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 1.5, mb: 1.5 }}>
-                <Typography variant="subtitle2" sx={{ color: 'success.main', fontWeight: 700 }}>
-                  Live Data
-                </Typography>
-                <Typography variant="body2" sx={{ color: 'text.secondary' }}>
-                  Filter applied to selected time range
-                </Typography>
-              </Box>
-              <Stack direction="row" spacing={1} sx={{ flexWrap: 'wrap', gap: 1 }}>
-                <Button variant={timeRange === '1w' ? 'contained' : 'outlined'} size="small" onClick={() => setTimeRange('1w')}>Last Week</Button>
-                <Button variant={timeRange === '1m' ? 'contained' : 'outlined'} size="small" onClick={() => setTimeRange('1m')}>Last Month</Button>
-                <Button variant={timeRange === '3m' ? 'contained' : 'outlined'} size="small" onClick={() => setTimeRange('3m')}>Last 3 Months</Button>
-                <Button variant={timeRange === '6m' ? 'contained' : 'outlined'} size="small" onClick={() => setTimeRange('6m')}>Last 6 Months</Button>
-                <Button variant={timeRange === '1y' ? 'contained' : 'outlined'} size="small" onClick={() => setTimeRange('1y')}>Last Year</Button>
-              </Stack>
-            </Box>
-          )}
-
           {activeTab === 'jobs' && (
             <Box sx={{ width: '100%', maxWidth: '1400px' }}>
               <MaterialJobsList />

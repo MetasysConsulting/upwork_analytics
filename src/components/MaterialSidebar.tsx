@@ -48,6 +48,8 @@ interface MaterialSidebarProps {
   activeTab: string
   onTabChange: (tab: string) => void
   jobCount: number
+  timeRange?: '1w' | '1m' | '3m' | '6m' | '1y'
+  onTimeRangeChange?: (range: '1w' | '1m' | '3m' | '6m' | '1y') => void
   open?: boolean
   onToggle?: () => void
 }
@@ -65,6 +67,8 @@ export default function MaterialSidebar({
   activeTab,
   onTabChange,
   jobCount,
+  timeRange = '1m',
+  onTimeRangeChange,
   open = true,
   onToggle
 }: MaterialSidebarProps) {
@@ -249,6 +253,28 @@ export default function MaterialSidebar({
                 sx={{ height: 20, fontSize: '0.75rem' }}
               />
             </Stack>
+            {onTimeRangeChange && activeTab !== 'jobs' && (
+              <Stack direction="row" spacing={0.75} sx={{ mt: 1.25, flexWrap: 'wrap', gap: 0.75 }}>
+                {[
+                  { id: '1w', label: '1W' },
+                  { id: '1m', label: '1M' },
+                  { id: '3m', label: '3M' },
+                  { id: '6m', label: '6M' },
+                  { id: '1y', label: '1Y' },
+                ].map((item) => (
+                  <Chip
+                    key={item.id}
+                    size="small"
+                    label={item.label}
+                    clickable
+                    color={timeRange === item.id ? 'primary' : 'default'}
+                    variant={timeRange === item.id ? 'filled' : 'outlined'}
+                    onClick={() => onTimeRangeChange(item.id as '1w' | '1m' | '3m' | '6m' | '1y')}
+                    sx={{ height: 22, fontSize: '0.7rem', fontWeight: 600 }}
+                  />
+                ))}
+              </Stack>
+            )}
           </Paper>
         )}
       </Box>
