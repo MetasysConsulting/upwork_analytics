@@ -3,35 +3,36 @@
 import ReactECharts from 'echarts-for-react'
 import { useState, useEffect } from 'react'
 import { CircularProgress, Box, Typography } from '@mui/material'
-import { supabase, ScrapedJob } from '@/lib/supabase'
 
 interface JobPostingHeatmapProps {
-  jobs?: ScrapedJob[] // Keep for backward compatibility
+  jobs?: any[]
+  fromDate?: string
 }
 
-export default function JobPostingHeatmap({ jobs: propJobs }: JobPostingHeatmapProps) {
-  const [jobs, setJobs] = useState<ScrapedJob[]>(propJobs || [])
-  const [loading, setLoading] = useState(!propJobs || propJobs.length === 0)
+interface HeatmapRow {
+  day_of_week: number
+  hour: number
+  job_count: number
+}
+
+export default function JobPostingHeatmap({ fromDate }: JobPostingHeatmapProps) {
+  const [rows, setRows] = useState<HeatmapRow[]>([])
+  const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
 
   useEffect(() => {
-    if (propJobs && propJobs.length > 0) {
-      setJobs(propJobs)
-      setLoading(false)
-      return
-    }
-
-    async function fetchJobs() {
+    async function fetchMetrics() {
       try {
         setLoading(true)
-        const { data, error: fetchError } = await supabase
-          .from('scraped_jobs')
-          .select('*')
-          .not('created_at', 'is', null)
-          .order('created_at', { ascending: false })
+        const query = fromDate ? `?from_date=${encodeURIComponent(fromDate)}` : ''
+        const response = await fetch(`/api/metrics/posting-heatmap${query}`)
+        const result = await response.json()
 
-        if (fetchError) throw new Error(fetchError.message)
-        setJobs(data || [])
+        if (!response.ok) {
+          throw new Error(result.error || 'Failed to load data')
+        }
+
+        setRows(result.data || [])
       } catch (err: any) {
         console.error('Error fetching heatmap data:', err)
         setError(err.message || 'Failed to load data')
@@ -40,8 +41,8 @@ export default function JobPostingHeatmap({ jobs: propJobs }: JobPostingHeatmapP
       }
     }
 
-    fetchJobs()
-  }, [propJobs])
+    fetchMetrics()
+  }, [fromDate])
 
   if (loading) {
     return (
@@ -67,14 +68,12 @@ export default function JobPostingHeatmap({ jobs: propJobs }: JobPostingHeatmapP
   // Initialize data structure for hour vs day heatmap
   const activityCounts: { [key: string]: number } = {}
   
-  jobs.forEach((job) => {
-    if (job.created_at) {
-      const date = new Date(job.created_at)
-      const dayOfWeek = date.getDay() // 0 = Sunday, 6 = Saturday
-      const hour = date.getHours()
-      const key = `${dayOfWeek}-${hour}`
-      activityCounts[key] = (activityCounts[key] || 0) + 1
-    }
+  rows.forEach((row) => {
+    const dayOfWeek = Number(row.day_of_week)
+    const hour = Number(row.hour)
+    const count = Number(row.job_count || 0)
+    const key = `${dayOfWeek}-${hour}`
+    activityCounts[key] = count
   })
 
   // Convert to heatmap format: [hour, day, count]

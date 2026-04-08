@@ -3,35 +3,35 @@
 import ReactECharts from 'echarts-for-react'
 import { useState, useEffect } from 'react'
 import { CircularProgress, Box, Typography } from '@mui/material'
-import { supabase, ScrapedJob } from '@/lib/supabase'
 
 interface ClientSpendingChartProps {
-  jobs?: ScrapedJob[] // Keep for backward compatibility
+  jobs?: any[]
+  fromDate?: string
 }
 
-export default function ClientSpendingChart({ jobs: propJobs }: ClientSpendingChartProps) {
-  const [jobs, setJobs] = useState<ScrapedJob[]>(propJobs || [])
-  const [loading, setLoading] = useState(!propJobs || propJobs.length === 0)
+interface ClientSpendingData {
+  tier_label: string
+  client_count: number
+}
+
+export default function ClientSpendingChart({ fromDate }: ClientSpendingChartProps) {
+  const [spendingRows, setSpendingRows] = useState<ClientSpendingData[]>([])
+  const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
 
   useEffect(() => {
-    if (propJobs && propJobs.length > 0) {
-      setJobs(propJobs)
-      setLoading(false)
-      return
-    }
-
-    async function fetchJobs() {
+    async function fetchMetrics() {
       try {
         setLoading(true)
-        const { data, error: fetchError } = await supabase
-          .from('scraped_jobs')
-          .select('*')
-          .not('client_total_spent', 'is', null)
-          .order('created_at', { ascending: false })
+        const query = fromDate ? `?from_date=${encodeURIComponent(fromDate)}` : ''
+        const response = await fetch(`/api/metrics/client-spending${query}`)
+        const result = await response.json()
 
-        if (fetchError) throw new Error(fetchError.message)
-        setJobs(data || [])
+        if (!response.ok) {
+          throw new Error(result.error || 'Failed to load data')
+        }
+
+        setSpendingRows(result.data || [])
       } catch (err: any) {
         console.error('Error fetching client spending data:', err)
         setError(err.message || 'Failed to load data')
@@ -40,8 +40,8 @@ export default function ClientSpendingChart({ jobs: propJobs }: ClientSpendingCh
       }
     }
 
-    fetchJobs()
-  }, [propJobs])
+    fetchMetrics()
+  }, [fromDate])
 
   if (loading) {
     return (
@@ -60,22 +60,7 @@ export default function ClientSpendingChart({ jobs: propJobs }: ClientSpendingCh
     )
   }
 
-  // Extract spending data from jobs
-  const spendingData = jobs
-    .filter(job => job.client_total_spent && job.client_total_spent !== '')
-    .map(job => {
-      // Parse spending amount from strings like "$5,000+" or "$10,000"
-      const spentStr = job.client_total_spent || ''
-      const match = spentStr.match(/\$?([\d,]+)/)
-      if (match) {
-        const amount = parseInt(match[1].replace(/,/g, ''))
-                 return { id: String(job.id), amount }
-      }
-      return null
-    })
-    .filter(item => item !== null) as { id: string; amount: number }[]
-
-  if (spendingData.length === 0) {
+  if (spendingRows.length === 0) {
     return (
       <div style={{ 
         textAlign: 'center', 
@@ -90,29 +75,22 @@ export default function ClientSpendingChart({ jobs: propJobs }: ClientSpendingCh
     )
   }
 
-  // Define spending tiers
-  const spendingTiers = [
-    { name: 'Starter ($1-$1K)', min: 1, max: 1000, color: '#FF6B6B', icon: '🌱' },
-    { name: 'Growing ($1K-$5K)', min: 1000, max: 5000, color: '#4ECDC4', icon: '📈' },
-    { name: 'Established ($5K-$25K)', min: 5000, max: 25000, color: '#45B7D1', icon: '🏢' },
-    { name: 'Corporate ($25K-$100K)', min: 25000, max: 100000, color: '#A29BFE', icon: '🏛️' },
-    { name: 'Enterprise ($100K+)', min: 100000, max: Infinity, color: '#FF9F43', icon: '👑' }
-  ]
+  const spendingStyle: Record<string, { color: string; icon: string }> = {
+    'Starter ($1-$1K)': { color: '#FF6B6B', icon: '🌱' },
+    'Growing ($1K-$5K)': { color: '#4ECDC4', icon: '📈' },
+    'Established ($5K-$25K)': { color: '#45B7D1', icon: '🏢' },
+    'Corporate ($25K-$100K)': { color: '#A29BFE', icon: '🏛️' },
+    'Enterprise ($100K+)': { color: '#FF9F43', icon: '👑' }
+  }
 
-  // Count clients in each tier
-  const tierCounts = spendingTiers.map(tier => {
-    const count = spendingData.filter(client => 
-      client.amount >= tier.min && client.amount < tier.max
-    ).length
-    const percentage = ((count / spendingData.length) * 100)
-    return {
-      ...tier,
-      count,
-      percentage
-    }
-  }).filter(tier => tier.count > 0)
-
-  const totalClients = spendingData.length
+  const totalClients = spendingRows.reduce((sum, r) => sum + Number(r.client_count || 0), 0)
+  const tierCounts = spendingRows.map((row) => ({
+    name: row.tier_label,
+    count: Number(row.client_count || 0),
+    percentage: totalClients > 0 ? (Number(row.client_count || 0) / totalClients) * 100 : 0,
+    color: spendingStyle[row.tier_label]?.color || '#A29BFE',
+    icon: spendingStyle[row.tier_label]?.icon || '💼'
+  }))
 
   const option = {
     backgroundColor: '#0a0e1a',

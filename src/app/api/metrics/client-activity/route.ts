@@ -1,9 +1,14 @@
 import { NextResponse } from 'next/server'
 import { supabase } from '@/lib/supabase'
 
-export async function GET() {
+export async function GET(request: Request) {
   try {
-    const { data, error } = await supabase.rpc('get_client_activity')
+    const { searchParams } = new URL(request.url)
+    const from_date = searchParams.get('from_date')
+
+    const { data, error } = await supabase.rpc('get_client_activity', {
+      from_date: from_date || null
+    })
 
     if (error) {
       console.error('Error fetching client activity:', error)

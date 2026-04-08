@@ -3,36 +3,36 @@
 import ReactECharts from 'echarts-for-react'
 import { useState, useEffect } from 'react'
 import { CircularProgress, Box, Typography } from '@mui/material'
-import { supabase, ScrapedJob } from '@/lib/supabase'
 
 interface ClientHourlyRateChartProps {
-  jobs?: ScrapedJob[] // Keep for backward compatibility
+  jobs?: any[]
+  fromDate?: string
 }
 
-export default function ClientHourlyRateChart({ jobs: propJobs }: ClientHourlyRateChartProps) {
-  const [jobs, setJobs] = useState<ScrapedJob[]>(propJobs || [])
-  const [loading, setLoading] = useState(!propJobs || propJobs.length === 0)
+interface HourlyRateRow {
+  range_label: string
+  job_count: number
+  avg_rate: number
+}
+
+export default function ClientHourlyRateChart({ fromDate }: ClientHourlyRateChartProps) {
+  const [rows, setRows] = useState<HourlyRateRow[]>([])
+  const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
 
   useEffect(() => {
-    if (propJobs && propJobs.length > 0) {
-      setJobs(propJobs)
-      setLoading(false)
-      return
-    }
-
-    async function fetchJobs() {
+    async function fetchMetrics() {
       try {
         setLoading(true)
-        const { data, error: fetchError } = await supabase
-          .from('scraped_jobs')
-          .select('*')
-          .eq('budget_type', 'Hourly')
-          .not('budget_amount', 'is', null)
-          .order('created_at', { ascending: false })
+        const query = fromDate ? `?from_date=${encodeURIComponent(fromDate)}` : ''
+        const response = await fetch(`/api/metrics/client-hourly-rate${query}`)
+        const result = await response.json()
 
-        if (fetchError) throw new Error(fetchError.message)
-        setJobs(data || [])
+        if (!response.ok) {
+          throw new Error(result.error || 'Failed to load data')
+        }
+
+        setRows(result.data || [])
       } catch (err: any) {
         console.error('Error fetching hourly rate data:', err)
         setError(err.message || 'Failed to load data')
@@ -41,8 +41,8 @@ export default function ClientHourlyRateChart({ jobs: propJobs }: ClientHourlyRa
       }
     }
 
-    fetchJobs()
-  }, [propJobs])
+    fetchMetrics()
+  }, [fromDate])
 
   if (loading) {
     return (
@@ -61,28 +61,7 @@ export default function ClientHourlyRateChart({ jobs: propJobs }: ClientHourlyRa
     )
   }
 
-  // Filter jobs with hourly rates and extract rates
-  const hourlyJobs = jobs.filter(job => 
-    job.budget_type?.toLowerCase() === 'hourly' && job.budget_amount
-  )
-
-  const rates: number[] = []
-  hourlyJobs.forEach(job => {
-    if (job.budget_amount) {
-      // Extract number from budget amount (e.g., "$25.00-$35.00" -> [25, 35])
-      const matches = job.budget_amount.match(/\$?([\d.]+)/g)
-      if (matches) {
-        matches.forEach(match => {
-          const rate = parseFloat(match.replace('$', ''))
-          if (!isNaN(rate) && rate > 0 && rate <= 200) { // Reasonable hourly rate range
-            rates.push(rate)
-          }
-        })
-      }
-    }
-  })
-
-  if (rates.length === 0) {
+  if (rows.length === 0) {
     return (
       <div style={{ 
         textAlign: 'center', 
@@ -97,35 +76,31 @@ export default function ClientHourlyRateChart({ jobs: propJobs }: ClientHourlyRa
     )
   }
 
-  // Calculate average rate
-  const avgRate = rates.reduce((sum, rate) => sum + rate, 0) / rates.length
+  const rangeStyle: Record<string, { color: string; icon: string }> = {
+    '$5-$15': { color: '#FF6B6B', icon: '💰' },
+    '$15-$25': { color: '#FFB347', icon: '🌱' },
+    '$25-$35': { color: '#4ECDC4', icon: '⚡' },
+    '$35-$50': { color: '#45B7D1', icon: '🎯' },
+    '$50-$75': { color: '#9B59B6', icon: '💎' },
+    '$75+': { color: '#E67E22', icon: '👑' }
+  }
 
-  // Define rate ranges with enhanced colors
-  const rateRanges = [
-    { label: '$5-$15', min: 5, max: 15, color: '#FF6B6B', icon: '💰' },
-    { label: '$15-$25', min: 15, max: 25, color: '#FFB347', icon: '🌱' },
-    { label: '$25-$35', min: 25, max: 35, color: '#4ECDC4', icon: '⚡' },
-    { label: '$35-$50', min: 35, max: 50, color: '#45B7D1', icon: '🎯' },
-    { label: '$50-$75', min: 50, max: 75, color: '#9B59B6', icon: '💎' },
-    { label: '$75+', min: 75, max: Infinity, color: '#E67E22', icon: '👑' }
-  ]
-
-  // Count jobs in each range
-  const rangeCounts = rateRanges.map(range => {
-    const count = rates.filter(rate => rate >= range.min && rate < range.max).length
-    const percentage = ((count / rates.length) * 100)
-    return {
-      ...range,
-      count,
-      percentage
-    }
-  }).filter(range => range.count > 0) // Only show ranges with data
+  const totalJobs = rows.reduce((sum, row) => sum + Number(row.job_count || 0), 0)
+  const weightedSum = rows.reduce((sum, row) => sum + (Number(row.avg_rate || 0) * Number(row.job_count || 0)), 0)
+  const avgRate = totalJobs > 0 ? weightedSum / totalJobs : 0
+  const rangeCounts = rows.map((row) => ({
+    label: row.range_label,
+    count: Number(row.job_count || 0),
+    percentage: totalJobs > 0 ? (Number(row.job_count || 0) / totalJobs) * 100 : 0,
+    color: rangeStyle[row.range_label]?.color || '#06B6D4',
+    icon: rangeStyle[row.range_label]?.icon || '💼'
+  }))
 
   const option = {
     backgroundColor: '#0a0e1a',
     title: {
       text: '💰 Hourly Rate Market Analysis',
-      subtext: `Competitive rate distribution from ${rates.length} hourly jobs • Average: $${avgRate.toFixed(0)}/hr`,
+      subtext: `Competitive rate distribution from ${totalJobs} hourly jobs • Average: $${avgRate.toFixed(0)}/hr`,
       left: 'center',
       top: '3%',
       textStyle: {
@@ -156,7 +131,7 @@ export default function ClientHourlyRateChart({ jobs: propJobs }: ClientHourlyRa
       },
       formatter: function(params: any) {
         const data = params.data
-        const percentage = ((data.value / rates.length) * 100).toFixed(1)
+        const percentage = totalJobs > 0 ? ((data.value / totalJobs) * 100).toFixed(1) : '0.0'
         return `
           <div style="padding: 15px; border-radius: 8px; background: linear-gradient(135deg, ${data.itemStyle.color}15, ${data.itemStyle.color}05);">
             <div style="text-align: center; margin-bottom: 10px;">
@@ -275,7 +250,7 @@ export default function ClientHourlyRateChart({ jobs: propJobs }: ClientHourlyRa
           fontSize: 12,
           fontWeight: 'bold',
           formatter: function(params: any) {
-            const percentage = ((params.value / rates.length) * 100).toFixed(1)
+            const percentage = totalJobs > 0 ? ((params.value / totalJobs) * 100).toFixed(1) : '0.0'
             return `${params.value} (${percentage}%)`
           }
         },

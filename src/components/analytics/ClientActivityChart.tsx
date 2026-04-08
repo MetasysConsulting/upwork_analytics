@@ -3,41 +3,42 @@
 import ReactECharts from 'echarts-for-react'
 import { useState, useEffect } from 'react'
 import { CircularProgress, Box, Typography } from '@mui/material'
-import { supabase, ScrapedJob } from '@/lib/supabase'
 
 interface ClientActivityChartProps {
-  jobs?: ScrapedJob[] // Keep for backward compatibility, but will fetch if empty
+  jobs?: any[]
+  fromDate?: string
 }
 
-export default function ClientActivityChart({ jobs: propJobs }: ClientActivityChartProps) {
-  const [jobs, setJobs] = useState<ScrapedJob[]>(propJobs || [])
-  const [loading, setLoading] = useState(!propJobs || propJobs.length === 0)
+interface ClientActivityPoint {
+  jobs_posted: number
+  total_spent: number
+  location: string
+}
+
+export default function ClientActivityChart({ fromDate }: ClientActivityChartProps) {
+  const [activityData, setActivityData] = useState<ClientActivityPoint[]>([])
+  const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
 
   useEffect(() => {
-    // Only fetch if no jobs provided or empty array
-    if (propJobs && propJobs.length > 0) {
-      setJobs(propJobs)
-      setLoading(false)
-      return
-    }
-
-    async function fetchJobs() {
+    async function fetchMetrics() {
       try {
         setLoading(true)
-        // Fetch jobs with client activity data
-        const { data, error: fetchError } = await supabase
-          .from('scraped_jobs')
-          .select('*')
-          .not('client_jobs_posted', 'is', null)
-          .not('client_total_spent', 'is', null)
-          .order('created_at', { ascending: false })
+        const query = fromDate ? `?from_date=${encodeURIComponent(fromDate)}` : ''
+        const response = await fetch(`/api/metrics/client-activity-scatter${query}`)
+        const result = await response.json()
 
-        if (fetchError) {
-          throw new Error(fetchError.message)
+        if (!response.ok) {
+          throw new Error(result.error || 'Failed to load data')
         }
 
-        setJobs(data || [])
+        const data = (result.data || []).map((item: any) => ({
+          jobs_posted: Number(item.jobs_posted || 0),
+          total_spent: Number(item.total_spent || 0),
+          location: item.location || 'Unknown'
+        }))
+
+        setActivityData(data)
       } catch (err: any) {
         console.error('Error fetching client activity data:', err)
         setError(err.message || 'Failed to load data')
@@ -46,35 +47,8 @@ export default function ClientActivityChart({ jobs: propJobs }: ClientActivityCh
       }
     }
 
-    fetchJobs()
-  }, [propJobs])
-
-  // Extract client activity data
-  const activityData = jobs
-    .filter(job => 
-      job.client_jobs_posted !== null && 
-      job.client_total_spent !== null && 
-      job.client_jobs_posted !== undefined && 
-      job.client_total_spent !== undefined
-    )
-    .map(job => {
-      const jobsPosted = typeof job.client_jobs_posted === 'string' 
-        ? parseInt(job.client_jobs_posted) 
-        : job.client_jobs_posted || 0
-
-      // Parse spending amount from strings like "$5,000+" or "$10,000"
-      const spentStr = job.client_total_spent?.toString() || ''
-      const match = spentStr.match(/\$?([\d,]+)/)
-      const totalSpent = match ? parseInt(match[1].replace(/,/g, '')) : 0
-
-      return {
-        jobsPosted,
-        totalSpent,
-        clientId: String(job.id),
-        location: job.client_location || 'Unknown'
-      }
-    })
-    .filter(item => item.jobsPosted > 0 && item.totalSpent > 0)
+    fetchMetrics()
+  }, [fromDate])
 
   if (loading) {
     return (
@@ -112,8 +86,8 @@ export default function ClientActivityChart({ jobs: propJobs }: ClientActivityCh
   }
 
   // Categorize clients by activity level
-  const maxJobs = Math.max(...activityData.map(item => item.jobsPosted))
-  const maxSpent = Math.max(...activityData.map(item => item.totalSpent))
+  const maxJobs = Math.max(...activityData.map(item => item.jobs_posted))
+  const maxSpent = Math.max(...activityData.map(item => item.total_spent))
 
   const categorizedData = activityData.map(item => {
     let category = ''
@@ -121,15 +95,15 @@ export default function ClientActivityChart({ jobs: propJobs }: ClientActivityCh
     let size = 20
 
     // Determine category based on jobs posted and spending
-    if (item.jobsPosted >= maxJobs * 0.7 && item.totalSpent >= maxSpent * 0.7) {
+    if (item.jobs_posted >= maxJobs * 0.7 && item.total_spent >= maxSpent * 0.7) {
       category = 'High Volume & High Spend'
       color = '#DC2626'
       size = 35
-    } else if (item.jobsPosted >= maxJobs * 0.5 || item.totalSpent >= maxSpent * 0.5) {
+    } else if (item.jobs_posted >= maxJobs * 0.5 || item.total_spent >= maxSpent * 0.5) {
       category = 'Active Clients'
       color = '#F59E0B'
       size = 30
-    } else if (item.jobsPosted >= maxJobs * 0.3 || item.totalSpent >= maxSpent * 0.3) {
+    } else if (item.jobs_posted >= maxJobs * 0.3 || item.total_spent >= maxSpent * 0.3) {
       category = 'Moderate Activity'
       color = '#10B981'
       size = 25
@@ -185,10 +159,10 @@ export default function ClientActivityChart({ jobs: propJobs }: ClientActivityCh
             </div>
             <strong style="color: ${data.color}; font-size: 16px; display: block; margin-bottom: 10px;">${data.category}</strong>
             <div style="margin: 8px 0;">
-              <span style="color: #4ECDC4;">📊 Jobs Posted:</span> <span style="color: #ffffff; font-weight: bold;">${data.jobsPosted}</span>
+              <span style="color: #4ECDC4;">📊 Jobs Posted:</span> <span style="color: #ffffff; font-weight: bold;">${data.jobs_posted}</span>
             </div>
             <div style="margin: 8px 0;">
-              <span style="color: #FF6B6B;">💰 Total Spent:</span> <span style="color: #ffffff; font-weight: bold;">$${data.totalSpent.toLocaleString()}</span>
+              <span style="color: #FF6B6B;">💰 Total Spent:</span> <span style="color: #ffffff; font-weight: bold;">$${data.total_spent.toLocaleString()}</span>
             </div>
             <div style="margin: 8px 0;">
               <span style="color: #A29BFE;">📍 Location:</span> <span style="color: #ffffff; font-weight: bold;">${data.location}</span>
@@ -279,7 +253,7 @@ export default function ClientActivityChart({ jobs: propJobs }: ClientActivityCh
         name: 'Client Activity',
         type: 'scatter',
         data: categorizedData.map(item => ({
-          value: [item.jobsPosted, item.totalSpent],
+          value: [item.jobs_posted, item.total_spent],
           symbolSize: item.size,
           itemStyle: {
             color: {

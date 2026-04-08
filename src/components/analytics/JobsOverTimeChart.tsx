@@ -5,7 +5,8 @@ import { useState, useEffect } from 'react'
 import { CircularProgress, Box, Typography } from '@mui/material'
 
 interface JobsOverTimeChartProps {
-  jobs?: any[] // Keep for backward compatibility, but won't be used
+  jobs?: any[]
+  fromDate?: string
 }
 
 interface TimeSeriesData {
@@ -13,7 +14,7 @@ interface TimeSeriesData {
   count: number
 }
 
-export default function JobsOverTimeChart({ jobs: _legacyJobs }: JobsOverTimeChartProps) {
+export default function JobsOverTimeChart({ fromDate }: JobsOverTimeChartProps) {
   const [timelineData, setTimelineData] = useState<TimeSeriesData[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -22,7 +23,8 @@ export default function JobsOverTimeChart({ jobs: _legacyJobs }: JobsOverTimeCha
     async function fetchMetrics() {
       try {
         setLoading(true)
-        const response = await fetch('/api/metrics/jobs-over-time')
+        const query = fromDate ? `?from_date=${encodeURIComponent(fromDate)}` : ''
+        const response = await fetch(`/api/metrics/jobs-over-time${query}`)
         const result = await response.json()
 
         if (!response.ok) {
@@ -48,7 +50,7 @@ export default function JobsOverTimeChart({ jobs: _legacyJobs }: JobsOverTimeCha
     }
 
     fetchMetrics()
-  }, [])
+  }, [fromDate])
 
   if (loading) {
     return (

@@ -1,10 +1,15 @@
 import { NextResponse } from 'next/server'
 import { supabase } from '@/lib/supabase'
 
-export async function GET() {
+export async function GET(request: Request) {
   try {
+    const { searchParams } = new URL(request.url)
+    const from_date = searchParams.get('from_date')
+
     console.log('Fetching skills demand from Supabase...')
-    const { data, error } = await supabase.rpc('get_skills_demand')
+    const { data, error } = await supabase.rpc('get_skills_demand', {
+      from_date: from_date || null
+    })
 
     if (error) {
       console.error('Supabase RPC error:', {

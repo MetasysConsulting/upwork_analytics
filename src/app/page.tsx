@@ -1,9 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { Box, Container, useTheme, CircularProgress, Typography } from '@mui/material'
-import { supabase } from '@/lib/supabase'
-import type { ScrapedJob } from '@/lib/supabase'
+import { Box, Container, useTheme, CircularProgress, Typography, Button, Stack } from '@mui/material'
 
 // Import chart components (keeping existing charts for now)
 import JobsOverTimeChart from '@/components/analytics/JobsOverTimeChart'
@@ -23,9 +21,11 @@ import MaterialSidebar from '@/components/MaterialSidebar'
 import MaterialJobsList from '@/components/MaterialJobsList'
 
 export default function Home() {
+  type TimeRange = '1w' | '1m' | '3m' | '6m' | '1y'
   const [activeTab, setActiveTab] = useState<'jobs' | 'premium-map' | 'jobs-over-time' | 'budget-analysis' | 'client-countries' | 'client-spending' | 'client-hire-rate' | 'client-hourly-rate' | 'connects-required' | 'interview-rate' | 'skills-demand' | 'posting-heatmap'>('jobs')
   const [totalJobCount, setTotalJobCount] = useState<number>(0)
   const [loading, setLoading] = useState(false)
+  const [timeRange, setTimeRange] = useState<TimeRange>('1m')
 
   // Fetch total job count for sidebar
   useEffect(() => {
@@ -42,6 +42,19 @@ export default function Home() {
     }
     fetchTotalCount()
   }, [])
+
+  const getFromDateForRange = (range: TimeRange): string => {
+    const now = new Date()
+    const start = new Date(now)
+    if (range === '1w') start.setDate(now.getDate() - 7)
+    if (range === '1m') start.setMonth(now.getMonth() - 1)
+    if (range === '3m') start.setMonth(now.getMonth() - 3)
+    if (range === '6m') start.setMonth(now.getMonth() - 6)
+    if (range === '1y') start.setFullYear(now.getFullYear() - 1)
+    return start.toISOString()
+  }
+
+  const fromDate = getFromDateForRange(timeRange)
 
   const theme = useTheme()
   const [isMobile, setIsMobile] = useState(false)
@@ -110,6 +123,26 @@ export default function Home() {
             alignItems: 'center'
           }}
         >
+          {activeTab !== 'jobs' && (
+            <Box sx={{ width: '100%', maxWidth: '1400px', mb: 3 }}>
+              <Box sx={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 1.5, mb: 1.5 }}>
+                <Typography variant="subtitle2" sx={{ color: 'success.main', fontWeight: 700 }}>
+                  Live Data
+                </Typography>
+                <Typography variant="body2" sx={{ color: 'text.secondary' }}>
+                  Filter applied to selected time range
+                </Typography>
+              </Box>
+              <Stack direction="row" spacing={1} sx={{ flexWrap: 'wrap', gap: 1 }}>
+                <Button variant={timeRange === '1w' ? 'contained' : 'outlined'} size="small" onClick={() => setTimeRange('1w')}>Last Week</Button>
+                <Button variant={timeRange === '1m' ? 'contained' : 'outlined'} size="small" onClick={() => setTimeRange('1m')}>Last Month</Button>
+                <Button variant={timeRange === '3m' ? 'contained' : 'outlined'} size="small" onClick={() => setTimeRange('3m')}>Last 3 Months</Button>
+                <Button variant={timeRange === '6m' ? 'contained' : 'outlined'} size="small" onClick={() => setTimeRange('6m')}>Last 6 Months</Button>
+                <Button variant={timeRange === '1y' ? 'contained' : 'outlined'} size="small" onClick={() => setTimeRange('1y')}>Last Year</Button>
+              </Stack>
+            </Box>
+          )}
+
           {activeTab === 'jobs' && (
             <Box sx={{ width: '100%', maxWidth: '1400px' }}>
               <MaterialJobsList />
@@ -118,67 +151,67 @@ export default function Home() {
           
           {activeTab === 'jobs-over-time' && (
             <Box className="chart-container" sx={{ width: '100%', maxWidth: '1400px' }}>
-              <JobsOverTimeChart />
+              <JobsOverTimeChart fromDate={fromDate} />
             </Box>
           )}
           
           {activeTab === 'premium-map' && (
             <Box className="chart-container" sx={{ width: '100%', maxWidth: '1400px' }}>
-              <ClientActivityChart />
+              <ClientActivityChart fromDate={fromDate} />
             </Box>
           )}
           
           {activeTab === 'budget-analysis' && (
             <Box className="chart-container">
-              <BudgetAnalysisChart />
+              <BudgetAnalysisChart fromDate={fromDate} />
             </Box>
           )}
           
           {activeTab === 'client-countries' && (
             <Box className="chart-container">
-              <ClientCountriesChart />
+              <ClientCountriesChart fromDate={fromDate} />
             </Box>
           )}
           
           {activeTab === 'client-spending' && (
             <Box className="chart-container">
-              <ClientSpendingChart />
+              <ClientSpendingChart fromDate={fromDate} />
             </Box>
           )}
           
           {activeTab === 'client-hire-rate' && (
             <Box className="chart-container">
-              <ClientHireRateChart />
+              <ClientHireRateChart fromDate={fromDate} />
             </Box>
           )}
           
           {activeTab === 'client-hourly-rate' && (
             <Box className="chart-container">
-              <ClientHourlyRateChart />
+              <ClientHourlyRateChart fromDate={fromDate} />
             </Box>
           )}
           
           {activeTab === 'connects-required' && (
             <Box className="chart-container">
-              <ConnectsRequiredChart />
+              <ConnectsRequiredChart fromDate={fromDate} />
             </Box>
           )}
           
           {activeTab === 'interview-rate' && (
             <Box className="chart-container">
-              <InterviewingRateChart />
+              <InterviewingRateChart fromDate={fromDate} />
             </Box>
           )}
           
           {activeTab === 'skills-demand' && (
             <Box className="chart-container">
-              <SkillsDemandChart />
+              <SkillsDemandChart fromDate={fromDate} />
             </Box>
           )}
           
           {activeTab === 'posting-heatmap' && (
             <Box className="chart-container" sx={{ width: '100%', maxWidth: '1400px' }}>
-              <JobPostingHeatmap />
+              <JobPostingHeatmap fromDate={fromDate} />
             </Box>
           )}
         </Container>

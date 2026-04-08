@@ -3,35 +3,35 @@
 import ReactECharts from 'echarts-for-react'
 import { useState, useEffect } from 'react'
 import { CircularProgress, Box, Typography } from '@mui/material'
-import { supabase, ScrapedJob } from '@/lib/supabase'
 
 interface InterviewingRateChartProps {
-  jobs?: ScrapedJob[] // Keep for backward compatibility
+  jobs?: any[]
+  fromDate?: string
 }
 
-export default function InterviewingRateChart({ jobs: propJobs }: InterviewingRateChartProps) {
-  const [jobs, setJobs] = useState<ScrapedJob[]>(propJobs || [])
-  const [loading, setLoading] = useState(!propJobs || propJobs.length === 0)
+interface InterviewRow {
+  range_label: string
+  job_count: number
+}
+
+export default function InterviewingRateChart({ fromDate }: InterviewingRateChartProps) {
+  const [rows, setRows] = useState<InterviewRow[]>([])
+  const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
 
   useEffect(() => {
-    if (propJobs && propJobs.length > 0) {
-      setJobs(propJobs)
-      setLoading(false)
-      return
-    }
-
-    async function fetchJobs() {
+    async function fetchMetrics() {
       try {
         setLoading(true)
-        const { data, error: fetchError } = await supabase
-          .from('scraped_jobs')
-          .select('*')
-          .not('interviewing_count', 'is', null)
-          .order('created_at', { ascending: false })
+        const query = fromDate ? `?from_date=${encodeURIComponent(fromDate)}` : ''
+        const response = await fetch(`/api/metrics/interview-rate${query}`)
+        const result = await response.json()
 
-        if (fetchError) throw new Error(fetchError.message)
-        setJobs(data || [])
+        if (!response.ok) {
+          throw new Error(result.error || 'Failed to load data')
+        }
+
+        setRows(result.data || [])
       } catch (err: any) {
         console.error('Error fetching interviewing data:', err)
         setError(err.message || 'Failed to load data')
@@ -40,8 +40,8 @@ export default function InterviewingRateChart({ jobs: propJobs }: InterviewingRa
       }
     }
 
-    fetchJobs()
-  }, [propJobs])
+    fetchMetrics()
+  }, [fromDate])
 
   if (loading) {
     return (
@@ -60,16 +60,7 @@ export default function InterviewingRateChart({ jobs: propJobs }: InterviewingRa
     )
   }
 
-  // Extract interviewing data
-  const interviewingData = jobs
-    .filter(job => job.interviewing_count !== null && job.interviewing_count !== undefined)
-    .map(job => ({
-      count: typeof job.interviewing_count === 'string' 
-        ? parseInt(job.interviewing_count) 
-        : job.interviewing_count || 0
-    }))
-
-  if (interviewingData.length === 0) {
+  if (rows.length === 0) {
     return (
       <div style={{ 
         textAlign: 'center', 
@@ -84,33 +75,28 @@ export default function InterviewingRateChart({ jobs: propJobs }: InterviewingRa
     )
   }
 
-  // Define interviewing ranges
-  const interviewRanges = [
-    { name: 'No Interviews (0)', min: 0, max: 0, color: '#6B7280', icon: '😴' },
-    { name: 'Low Activity (1-3)', min: 1, max: 3, color: '#10B981', icon: '📝' },
-    { name: 'Moderate (4-8)', min: 4, max: 8, color: '#3B82F6', icon: '💼' },
-    { name: 'High Activity (9-15)', min: 9, max: 15, color: '#F59E0B', icon: '🔥' },
-    { name: 'Very Active (16+)', min: 16, max: Infinity, color: '#EF4444', icon: '🚀' }
-  ]
+  const rangeStyle: Record<string, { color: string; icon: string }> = {
+    'No Interviews (0)': { color: '#6B7280', icon: '😴' },
+    'Low Activity (1-3)': { color: '#10B981', icon: '📝' },
+    'Moderate (4-8)': { color: '#3B82F6', icon: '💼' },
+    'High Activity (9-15)': { color: '#F59E0B', icon: '🔥' },
+    'Very Active (16+)': { color: '#EF4444', icon: '🚀' }
+  }
 
-  // Count jobs in each range
-  const rangeCounts = interviewRanges.map(range => {
-    const count = interviewingData.filter(item => 
-      item.count >= range.min && item.count <= range.max
-    ).length
-    const percentage = ((count / interviewingData.length) * 100)
-    return {
-      ...range,
-      count,
-      percentage
-    }
-  }).filter(range => range.count > 0)
+  const totalJobs = rows.reduce((sum, row) => sum + Number(row.job_count || 0), 0)
+  const rangeCounts = rows.map((row) => ({
+    name: row.range_label,
+    count: Number(row.job_count || 0),
+    percentage: totalJobs > 0 ? (Number(row.job_count || 0) / totalJobs) * 100 : 0,
+    color: rangeStyle[row.range_label]?.color || '#10B981',
+    icon: rangeStyle[row.range_label]?.icon || '🎯'
+  }))
 
   const option = {
     backgroundColor: '#0a0e1a',
     title: {
       text: '🎯 Interview Activity Analysis',
-      subtext: `Competition analysis from ${interviewingData.length} jobs with interview data`,
+      subtext: `Competition analysis from ${totalJobs} jobs with interview data`,
       left: 'center',
       top: '3%',
       textStyle: {
@@ -141,7 +127,7 @@ export default function InterviewingRateChart({ jobs: propJobs }: InterviewingRa
       },
       formatter: function(params: any) {
         const data = params.data
-        const percentage = ((data.value / interviewingData.length) * 100).toFixed(1)
+        const percentage = totalJobs > 0 ? ((data.value / totalJobs) * 100).toFixed(1) : '0.0'
         return `
           <div style="padding: 15px; border-radius: 8px; background: linear-gradient(135deg, ${data.itemStyle.color}15, ${data.itemStyle.color}05);">
             <div style="text-align: center; margin-bottom: 10px;">
@@ -260,7 +246,7 @@ export default function InterviewingRateChart({ jobs: propJobs }: InterviewingRa
           fontSize: 12,
           fontWeight: 'bold',
           formatter: function(params: any) {
-            const percentage = ((params.value / interviewingData.length) * 100).toFixed(1)
+            const percentage = totalJobs > 0 ? ((params.value / totalJobs) * 100).toFixed(1) : '0.0'
             return `${params.value} (${percentage}%)`
           }
         },

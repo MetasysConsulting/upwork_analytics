@@ -6,21 +6,21 @@ export async function GET(request: Request) {
     const { searchParams } = new URL(request.url)
     const from_date = searchParams.get('from_date')
 
-    const { data, error } = await supabase.rpc('get_client_countries', {
+    const { data, error } = await supabase.rpc('get_interviewing_rate_distribution', {
       from_date: from_date || null
     })
 
     if (error) {
-      console.error('Error fetching client countries:', error)
+      console.error('Error fetching interview rate:', error)
       return NextResponse.json(
-        { error: 'Failed to fetch client countries metrics' },
+        { error: 'Failed to fetch interview rate metrics' },
         { status: 500 }
       )
     }
 
-    return NextResponse.json({ data })
+    return NextResponse.json({ data: data || [] })
   } catch (error: any) {
-    console.error('Error in client-countries API:', error)
+    console.error('Error in interview-rate API:', error)
     return NextResponse.json(
       { error: 'Internal server error' },
       { status: 500 }

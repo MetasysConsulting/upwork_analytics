@@ -3,35 +3,36 @@
 import ReactECharts from 'echarts-for-react'
 import { useState, useEffect } from 'react'
 import { CircularProgress, Box, Typography } from '@mui/material'
-import { supabase, ScrapedJob } from '@/lib/supabase'
 
 interface ClientHireRateChartProps {
-  jobs?: ScrapedJob[] // Keep for backward compatibility
+  jobs?: any[]
+  fromDate?: string
 }
 
-export default function ClientHireRateChart({ jobs: propJobs }: ClientHireRateChartProps) {
-  const [jobs, setJobs] = useState<ScrapedJob[]>(propJobs || [])
-  const [loading, setLoading] = useState(!propJobs || propJobs.length === 0)
+interface HireRateRow {
+  range_label: string
+  client_count: number
+  avg_rate: number
+}
+
+export default function ClientHireRateChart({ fromDate }: ClientHireRateChartProps) {
+  const [rows, setRows] = useState<HireRateRow[]>([])
+  const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
 
   useEffect(() => {
-    if (propJobs && propJobs.length > 0) {
-      setJobs(propJobs)
-      setLoading(false)
-      return
-    }
-
-    async function fetchJobs() {
+    async function fetchMetrics() {
       try {
         setLoading(true)
-        const { data, error: fetchError } = await supabase
-          .from('scraped_jobs')
-          .select('*')
-          .not('client_hire_rate', 'is', null)
-          .order('created_at', { ascending: false })
+        const query = fromDate ? `?from_date=${encodeURIComponent(fromDate)}` : ''
+        const response = await fetch(`/api/metrics/client-hire-rate${query}`)
+        const result = await response.json()
 
-        if (fetchError) throw new Error(fetchError.message)
-        setJobs(data || [])
+        if (!response.ok) {
+          throw new Error(result.error || 'Failed to load data')
+        }
+
+        setRows(result.data || [])
       } catch (err: any) {
         console.error('Error fetching hire rate data:', err)
         setError(err.message || 'Failed to load data')
@@ -40,8 +41,8 @@ export default function ClientHireRateChart({ jobs: propJobs }: ClientHireRateCh
       }
     }
 
-    fetchJobs()
-  }, [propJobs])
+    fetchMetrics()
+  }, [fromDate])
 
   if (loading) {
     return (
@@ -60,16 +61,7 @@ export default function ClientHireRateChart({ jobs: propJobs }: ClientHireRateCh
     )
   }
 
-  // Extract hire rate data
-  const hireRateData = jobs
-    .filter(job => job.client_hire_rate !== null && job.client_hire_rate !== undefined)
-    .map(job => ({
-      rate: typeof job.client_hire_rate === 'string' 
-        ? parseFloat(job.client_hire_rate) 
-        : job.client_hire_rate || 0
-    }))
-
-  if (hireRateData.length === 0) {
+  if (rows.length === 0) {
     return (
       <div style={{ 
         textAlign: 'center', 
@@ -84,29 +76,23 @@ export default function ClientHireRateChart({ jobs: propJobs }: ClientHireRateCh
     )
   }
 
-  // Define hire rate ranges
-  const hireRateRanges = [
-    { name: 'Very Low (0-20%)', min: 0, max: 20, color: '#EF4444', icon: '🔻' },
-    { name: 'Low (20-40%)', min: 20, max: 40, color: '#F59E0B', icon: '📉' },
-    { name: 'Medium (40-60%)', min: 40, max: 60, color: '#10B981', icon: '📊' },
-    { name: 'High (60-80%)', min: 60, max: 80, color: '#3B82F6', icon: '📈' },
-    { name: 'Excellent (80%+)', min: 80, max: 100, color: '#8B5CF6', icon: '🏆' }
-  ]
+  const rangeStyle: Record<string, { color: string; icon: string }> = {
+    'Very Low (0-20%)': { color: '#EF4444', icon: '🔻' },
+    'Low (20-40%)': { color: '#F59E0B', icon: '📉' },
+    'Medium (40-60%)': { color: '#10B981', icon: '📊' },
+    'High (60-80%)': { color: '#3B82F6', icon: '📈' },
+    'Excellent (80%+)': { color: '#8B5CF6', icon: '🏆' }
+  }
 
-  // Count jobs in each range
-  const rangeCounts = hireRateRanges.map(range => {
-    const count = hireRateData.filter(item => 
-      item.rate >= range.min && item.rate < range.max
-    ).length
-    const percentage = hireRateData.length > 0 ? ((count / hireRateData.length) * 100) : 0
-    const rangeData = hireRateData.filter(item => item.rate >= range.min && item.rate < range.max)
-    return {
-      ...range,
-      count,
-      percentage,
-      avgRate: count > 0 ? rangeData.reduce((sum, item) => sum + item.rate, 0) / count : 0
-    }
-  }).filter(range => range.count > 0)
+  const totalClients = rows.reduce((sum, row) => sum + Number(row.client_count || 0), 0)
+  const rangeCounts = rows.map((row) => ({
+    name: row.range_label,
+    count: Number(row.client_count || 0),
+    percentage: totalClients > 0 ? (Number(row.client_count || 0) / totalClients) * 100 : 0,
+    avgRate: Number(row.avg_rate || 0),
+    color: rangeStyle[row.range_label]?.color || '#8B5CF6',
+    icon: rangeStyle[row.range_label]?.icon || '📊'
+  }))
 
   if (rangeCounts.length === 0) {
     return (
@@ -130,7 +116,7 @@ export default function ClientHireRateChart({ jobs: propJobs }: ClientHireRateCh
     backgroundColor: '#0a0e1a',
     title: {
       text: '📊 Client Hire Rate Analysis',
-      subtext: `Success rate analysis from ${hireRateData.length} clients with hire rate data`,
+      subtext: `Success rate analysis from ${totalClients} clients with hire rate data`,
       left: 'center',
       top: '3%',
       textStyle: {

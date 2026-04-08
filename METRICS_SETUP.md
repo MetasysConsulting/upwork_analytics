@@ -1,6 +1,6 @@
 # Backend Metrics Setup Guide
 
-This application now uses **backend-aggregated metrics** calculated in Supabase instead of fetching all jobs to the frontend. This provides better performance and allows analytics on ALL jobs in the database.
+This application now uses **backend-aggregated metrics** calculated in Supabase with a `from_date` parameter for range filtering. This provides better performance, avoids API row-limit issues, and allows analytics on ALL matching jobs in the database.
 
 ## Setup Instructions
 
@@ -13,13 +13,20 @@ This application now uses **backend-aggregated metrics** calculated in Supabase 
 
 This will create:
 - A view for complete jobs
-- Database functions for each metric type:
+- Database functions for each metric type (all support `from_date`):
   - `get_jobs_over_time()` - Jobs posted over time
   - `get_budget_analysis()` - Budget distribution analysis
   - `get_skills_demand()` - Top skills in demand
   - `get_client_countries()` - Client locations
-  - `get_overall_stats()` - Overall statistics
   - `get_client_activity()` - Job posting heatmap data
+  - `get_client_activity_scatter()` - Client activity scatter data
+  - `get_client_spending_distribution()` - Client spending tiers
+  - `get_client_hire_rate_distribution()` - Hire-rate bands
+  - `get_client_hourly_rate_distribution()` - Hourly-rate bands
+  - `get_connects_required_distribution()` - Connects ranges
+  - `get_interviewing_rate_distribution()` - Interview ranges
+  - `get_posting_heatmap()` - Day/hour heatmap bins
+  - `get_overall_stats()` - Overall statistics
 
 ### Step 2: Verify Functions
 
@@ -28,11 +35,11 @@ After running the SQL, verify the functions exist:
 ```sql
 SELECT routine_name 
 FROM information_schema.routines 
-WHERE routine_schema = 'public' 
-AND routine_name LIKE 'get_%';
+WHERE routine_schema = 'public'
+AND (routine_name LIKE 'get_%' OR routine_name = 'parse_numeric');
 ```
 
-You should see all 6 functions listed.
+You should see all analytics functions listed.
 
 ### Step 3: Test the API Routes
 
@@ -41,8 +48,17 @@ The Next.js API routes are already set up at:
 - `/api/metrics/budget-analysis`
 - `/api/metrics/skills-demand`
 - `/api/metrics/client-countries`
-- `/api/metrics/overall-stats`
 - `/api/metrics/client-activity`
+- `/api/metrics/client-activity-scatter`
+- `/api/metrics/client-spending`
+- `/api/metrics/client-hire-rate`
+- `/api/metrics/client-hourly-rate`
+- `/api/metrics/connects-required`
+- `/api/metrics/interview-rate`
+- `/api/metrics/posting-heatmap`
+- `/api/metrics/overall-stats`
+
+All routes support `?from_date=<ISO timestamp>` (for example: `?from_date=2026-01-01T00:00:00.000Z`).
 
 ### Step 4: Update Chart Components
 

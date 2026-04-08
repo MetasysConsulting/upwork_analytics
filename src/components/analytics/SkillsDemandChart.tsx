@@ -5,7 +5,8 @@ import { useState, useEffect } from 'react'
 import { CircularProgress, Box, Typography } from '@mui/material'
 
 interface SkillsDemandChartProps {
-  jobs?: any[] // Keep for backward compatibility, but won't be used
+  jobs?: any[]
+  fromDate?: string
 }
 
 interface SkillData {
@@ -13,7 +14,7 @@ interface SkillData {
   demand_count: number
 }
 
-export default function SkillsDemandChart({ jobs: _legacyJobs }: SkillsDemandChartProps) {
+export default function SkillsDemandChart({ fromDate }: SkillsDemandChartProps) {
   const [skillsData, setSkillsData] = useState<SkillData[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -22,7 +23,8 @@ export default function SkillsDemandChart({ jobs: _legacyJobs }: SkillsDemandCha
     async function fetchMetrics() {
       try {
         setLoading(true)
-        const response = await fetch('/api/metrics/skills-demand')
+        const query = fromDate ? `?from_date=${encodeURIComponent(fromDate)}` : ''
+        const response = await fetch(`/api/metrics/skills-demand${query}`)
         const result = await response.json()
 
         if (!response.ok) {
@@ -48,7 +50,7 @@ export default function SkillsDemandChart({ jobs: _legacyJobs }: SkillsDemandCha
     }
 
     fetchMetrics()
-  }, [])
+  }, [fromDate])
 
   if (loading) {
     return (

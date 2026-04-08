@@ -3,35 +3,35 @@
 import ReactECharts from 'echarts-for-react'
 import { useState, useEffect } from 'react'
 import { CircularProgress, Box, Typography } from '@mui/material'
-import { supabase, ScrapedJob } from '@/lib/supabase'
 
 interface ConnectsRequiredChartProps {
-  jobs?: ScrapedJob[] // Keep for backward compatibility
+  jobs?: any[]
+  fromDate?: string
 }
 
-export default function ConnectsRequiredChart({ jobs: propJobs }: ConnectsRequiredChartProps) {
-  const [jobs, setJobs] = useState<ScrapedJob[]>(propJobs || [])
-  const [loading, setLoading] = useState(!propJobs || propJobs.length === 0)
+interface ConnectsRow {
+  range_label: string
+  job_count: number
+}
+
+export default function ConnectsRequiredChart({ fromDate }: ConnectsRequiredChartProps) {
+  const [rows, setRows] = useState<ConnectsRow[]>([])
+  const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
 
   useEffect(() => {
-    if (propJobs && propJobs.length > 0) {
-      setJobs(propJobs)
-      setLoading(false)
-      return
-    }
-
-    async function fetchJobs() {
+    async function fetchMetrics() {
       try {
         setLoading(true)
-        const { data, error: fetchError } = await supabase
-          .from('scraped_jobs')
-          .select('*')
-          .not('connects_required', 'is', null)
-          .order('created_at', { ascending: false })
+        const query = fromDate ? `?from_date=${encodeURIComponent(fromDate)}` : ''
+        const response = await fetch(`/api/metrics/connects-required${query}`)
+        const result = await response.json()
 
-        if (fetchError) throw new Error(fetchError.message)
-        setJobs(data || [])
+        if (!response.ok) {
+          throw new Error(result.error || 'Failed to load data')
+        }
+
+        setRows(result.data || [])
       } catch (err: any) {
         console.error('Error fetching connects data:', err)
         setError(err.message || 'Failed to load data')
@@ -40,8 +40,8 @@ export default function ConnectsRequiredChart({ jobs: propJobs }: ConnectsRequir
       }
     }
 
-    fetchJobs()
-  }, [propJobs])
+    fetchMetrics()
+  }, [fromDate])
 
   if (loading) {
     return (
@@ -60,17 +60,7 @@ export default function ConnectsRequiredChart({ jobs: propJobs }: ConnectsRequir
     )
   }
 
-  // Extract connects data
-  const connectsData = jobs
-    .map(job => {
-      const connects = typeof job.connects_required === 'string' 
-        ? parseInt(job.connects_required) 
-        : job.connects_required
-      return connects && connects > 0 ? connects : null
-    })
-    .filter(connects => connects !== null) as number[]
-
-  if (connectsData.length === 0) {
+  if (rows.length === 0) {
     return (
       <div style={{ 
         textAlign: 'center', 
@@ -85,33 +75,28 @@ export default function ConnectsRequiredChart({ jobs: propJobs }: ConnectsRequir
     )
   }
 
-  // Define connect ranges
-  const connectRanges = [
-    { name: 'Low (1-5)', min: 1, max: 5, color: '#4ECDC4', icon: '🟢' },
-    { name: 'Medium (6-10)', min: 6, max: 10, color: '#FFB347', icon: '🟡' },
-    { name: 'High (11-15)', min: 11, max: 15, color: '#FF6B6B', icon: '🟠' },
-    { name: 'Very High (16-20)', min: 16, max: 20, color: '#A29BFE', icon: '🔴' },
-    { name: 'Premium (21+)', min: 21, max: Infinity, color: '#E67E22', icon: '💎' }
-  ]
+  const rangeStyle: Record<string, { color: string; icon: string }> = {
+    'Low (1-5)': { color: '#4ECDC4', icon: '🟢' },
+    'Medium (6-10)': { color: '#FFB347', icon: '🟡' },
+    'High (11-15)': { color: '#FF6B6B', icon: '🟠' },
+    'Very High (16-20)': { color: '#A29BFE', icon: '🔴' },
+    'Premium (21+)': { color: '#E67E22', icon: '💎' }
+  }
 
-  // Count jobs in each range
-  const rangeCounts = connectRanges.map(range => {
-    const count = connectsData.filter(connects => 
-      connects >= range.min && connects < range.max
-    ).length
-    const percentage = ((count / connectsData.length) * 100)
-    return {
-      ...range,
-      count,
-      percentage
-    }
-  }).filter(range => range.count > 0)
+  const totalJobs = rows.reduce((sum, row) => sum + Number(row.job_count || 0), 0)
+  const rangeCounts = rows.map((row) => ({
+    name: row.range_label,
+    count: Number(row.job_count || 0),
+    percentage: totalJobs > 0 ? (Number(row.job_count || 0) / totalJobs) * 100 : 0,
+    color: rangeStyle[row.range_label]?.color || '#F59E0B',
+    icon: rangeStyle[row.range_label]?.icon || '🔗'
+  }))
 
   const option = {
     backgroundColor: '#0a0e1a',
     title: {
       text: '🔗 Connects Investment Analysis',
-      subtext: `Strategic analysis of ${connectsData.length} jobs requiring connects across ${rangeCounts.length} investment tiers`,
+      subtext: `Strategic analysis of ${totalJobs} jobs requiring connects across ${rangeCounts.length} investment tiers`,
       left: 'center',
       top: '3%',
       textStyle: {
@@ -142,7 +127,7 @@ export default function ConnectsRequiredChart({ jobs: propJobs }: ConnectsRequir
       },
       formatter: function(params: any) {
         const data = params.data
-        const percentage = ((data.value / connectsData.length) * 100).toFixed(1)
+        const percentage = totalJobs > 0 ? ((data.value / totalJobs) * 100).toFixed(1) : '0.0'
         return `
           <div style="padding: 15px; border-radius: 8px; background: linear-gradient(135deg, ${data.itemStyle.color}15, ${data.itemStyle.color}05);">
             <div style="text-align: center; margin-bottom: 10px;">
@@ -261,7 +246,7 @@ export default function ConnectsRequiredChart({ jobs: propJobs }: ConnectsRequir
           fontSize: 12,
           fontWeight: 'bold',
           formatter: function(params: any) {
-            const percentage = ((params.value / connectsData.length) * 100).toFixed(1)
+            const percentage = totalJobs > 0 ? ((params.value / totalJobs) * 100).toFixed(1) : '0.0'
             return `${params.value} (${percentage}%)`
           }
         },

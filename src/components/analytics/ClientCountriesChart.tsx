@@ -5,7 +5,8 @@ import { useState, useEffect } from 'react'
 import { CircularProgress, Box, Typography } from '@mui/material'
 
 interface ClientCountriesChartProps {
-  jobs?: any[] // Keep for backward compatibility
+  jobs?: any[]
+  fromDate?: string
 }
 
 interface CountryData {
@@ -13,7 +14,7 @@ interface CountryData {
   job_count: number
 }
 
-export default function ClientCountriesChart({ jobs: _legacyJobs }: ClientCountriesChartProps) {
+export default function ClientCountriesChart({ fromDate }: ClientCountriesChartProps) {
   const [countryData, setCountryData] = useState<CountryData[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -22,7 +23,8 @@ export default function ClientCountriesChart({ jobs: _legacyJobs }: ClientCountr
     async function fetchMetrics() {
       try {
         setLoading(true)
-        const response = await fetch('/api/metrics/client-countries')
+        const query = fromDate ? `?from_date=${encodeURIComponent(fromDate)}` : ''
+        const response = await fetch(`/api/metrics/client-countries${query}`)
         const result = await response.json()
 
         if (!response.ok) {
@@ -39,7 +41,7 @@ export default function ClientCountriesChart({ jobs: _legacyJobs }: ClientCountr
     }
 
     fetchMetrics()
-  }, [])
+  }, [fromDate])
 
   if (loading) {
     return (

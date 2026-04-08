@@ -5,7 +5,8 @@ import { useState, useEffect } from 'react'
 import { CircularProgress, Box, Typography } from '@mui/material'
 
 interface BudgetAnalysisChartProps {
-  jobs?: any[] // Keep for backward compatibility
+  jobs?: any[]
+  fromDate?: string
 }
 
 interface BudgetRangeData {
@@ -14,7 +15,7 @@ interface BudgetRangeData {
   avg_budget: number
 }
 
-export default function BudgetAnalysisChart({ jobs: _legacyJobs }: BudgetAnalysisChartProps) {
+export default function BudgetAnalysisChart({ fromDate }: BudgetAnalysisChartProps) {
   const [budgetData, setBudgetData] = useState<BudgetRangeData[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -23,7 +24,8 @@ export default function BudgetAnalysisChart({ jobs: _legacyJobs }: BudgetAnalysi
     async function fetchMetrics() {
       try {
         setLoading(true)
-        const response = await fetch('/api/metrics/budget-analysis')
+        const query = fromDate ? `?from_date=${encodeURIComponent(fromDate)}` : ''
+        const response = await fetch(`/api/metrics/budget-analysis${query}`)
         const result = await response.json()
 
         if (!response.ok) {
@@ -49,7 +51,7 @@ export default function BudgetAnalysisChart({ jobs: _legacyJobs }: BudgetAnalysi
     }
 
     fetchMetrics()
-  }, [])
+  }, [fromDate])
 
   if (loading) {
     return (
