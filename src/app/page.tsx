@@ -1,7 +1,8 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { Box, Container, useTheme, CircularProgress, Typography } from '@mui/material'
+import { Box, Container, useTheme, CircularProgress, Typography, Button, Paper, Stack } from '@mui/material'
+import { supabase } from '@/lib/supabase'
 
 // Import chart components (keeping existing charts for now)
 import JobsOverTimeChart from '@/components/analytics/JobsOverTimeChart'
@@ -25,6 +26,9 @@ export default function Home() {
   const [totalJobCount, setTotalJobCount] = useState<number>(0)
   const [loading, setLoading] = useState(false)
   const [timeRange, setTimeRange] = useState<TimeRange>('3m')
+  const [authLoading, setAuthLoading] = useState(true)
+  const [isAuthorized, setIsAuthorized] = useState(false)
+  const [userEmail, setUserEmail] = useState<string | null>(null)
 
   const getFromDateForRange = (range: TimeRange): string => {
     const now = new Date()
@@ -39,8 +43,56 @@ export default function Home() {
 
   const fromDate = getFromDateForRange(timeRange)
 
+  const verifyAuthorization = async (email?: string | null) => {
+    if (!email) {
+      setIsAuthorized(false)
+      setUserEmail(null)
+      return
+    }
+
+    const normalizedEmail = email.toLowerCase()
+    setUserEmail(normalizedEmail)
+
+    const { data, error } = await supabase
+      .from('authorized_users')
+      .select('email')
+      .eq('email', normalizedEmail)
+      .maybeSingle()
+
+    if (error) {
+      console.error('Authorization check failed:', error)
+      setIsAuthorized(false)
+      return
+    }
+
+    setIsAuthorized(Boolean(data))
+  }
+
+  useEffect(() => {
+    async function bootstrapAuth() {
+      setAuthLoading(true)
+      const { data: sessionData } = await supabase.auth.getSession()
+      await verifyAuthorization(sessionData.session?.user?.email)
+      setAuthLoading(false)
+    }
+
+    bootstrapAuth()
+
+    const { data: listener } = supabase.auth.onAuthStateChange(async (_event, session) => {
+      setAuthLoading(true)
+      await verifyAuthorization(session?.user?.email)
+      setAuthLoading(false)
+    })
+
+    return () => {
+      listener.subscription.unsubscribe()
+    }
+  }, [])
+
   // Fetch total job count for sidebar based on selected range
   useEffect(() => {
+    if (!isAuthorized) return
+
     async function fetchTotalCount() {
       try {
         const response = await fetch(`/api/metrics/total-count?from_date=${encodeURIComponent(fromDate)}`)
@@ -53,7 +105,18 @@ export default function Home() {
       }
     }
     fetchTotalCount()
-  }, [fromDate])
+  }, [fromDate, isAuthorized])
+
+  const handleGoogleLogin = async () => {
+    await supabase.auth.signInWithOAuth({
+      provider: 'google',
+      options: { redirectTo: window.location.origin }
+    })
+  }
+
+  const handleSignOut = async () => {
+    await supabase.auth.signOut()
+  }
 
   const theme = useTheme()
   const [isMobile, setIsMobile] = useState(false)
@@ -83,6 +146,52 @@ export default function Home() {
         <Typography variant="h6" color="text.secondary">
           Loading analytics data...
         </Typography>
+      </Box>
+    )
+  }
+
+  if (authLoading) {
+    return (
+      <Box sx={{ display: 'flex', minHeight: '100vh', alignItems: 'center', justifyContent: 'center' }}>
+        <Stack spacing={2} alignItems="center">
+          <CircularProgress />
+          <Typography variant="body1" color="text.secondary">Checking access...</Typography>
+        </Stack>
+      </Box>
+    )
+  }
+
+  if (!userEmail) {
+    return (
+      <Box sx={{ display: 'flex', minHeight: '100vh', alignItems: 'center', justifyContent: 'center', p: 3 }}>
+        <Paper sx={{ p: 4, maxWidth: 520, width: '100%', textAlign: 'center' }}>
+          <Typography variant="h4" sx={{ mb: 1, fontWeight: 700 }}>Upwork Analytics</Typography>
+          <Typography variant="body1" color="text.secondary" sx={{ mb: 3 }}>
+            Sign in with Google to continue.
+          </Typography>
+          <Button variant="contained" size="large" onClick={handleGoogleLogin}>
+            Continue with Google
+          </Button>
+        </Paper>
+      </Box>
+    )
+  }
+
+  if (!isAuthorized) {
+    return (
+      <Box sx={{ display: 'flex', minHeight: '100vh', alignItems: 'center', justifyContent: 'center', p: 3 }}>
+        <Paper sx={{ p: 4, maxWidth: 620, width: '100%', textAlign: 'center' }}>
+          <Typography variant="h5" sx={{ mb: 1, fontWeight: 700 }}>Access Not Allowed</Typography>
+          <Typography variant="body1" color="text.secondary" sx={{ mb: 2 }}>
+            This email is not in the authorized users list.
+          </Typography>
+          <Typography variant="body2" color="text.secondary" sx={{ mb: 3 }}>
+            Signed in as: {userEmail}
+          </Typography>
+          <Button variant="outlined" onClick={handleSignOut}>
+            Sign Out
+          </Button>
+        </Paper>
       </Box>
     )
   }
