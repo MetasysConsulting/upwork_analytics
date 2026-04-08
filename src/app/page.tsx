@@ -56,11 +56,9 @@ export default function Home() {
     const normalizedEmail = email.toLowerCase()
     setUserEmail(normalizedEmail)
 
-    const { data, error } = await supabase
-      .from('authorized_users')
-      .select('email')
-      .eq('email', normalizedEmail)
-      .maybeSingle()
+    const { data, error } = await supabase.rpc('is_email_authorized', {
+      p_email: normalizedEmail
+    })
 
     if (error) {
       console.error('Authorization check failed:', error)
