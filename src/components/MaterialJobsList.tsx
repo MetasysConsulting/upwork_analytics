@@ -55,9 +55,10 @@ const JOBS_PER_PAGE = 100
 interface MaterialJobsListProps {
   fromDate?: string
   timeRange?: '1w' | '1m' | '3m' | '6m' | '1y'
+  highProfileOnly?: boolean
 }
 
-export default function MaterialJobsList({ fromDate, timeRange = '1m' }: MaterialJobsListProps) {
+export default function MaterialJobsList({ fromDate, timeRange = '1m', highProfileOnly = false }: MaterialJobsListProps) {
   const theme = useTheme()
   const [jobs, setJobs] = useState<ScrapedJob[]>([])
   const [loading, setLoading] = useState(true)
@@ -73,9 +74,39 @@ export default function MaterialJobsList({ fromDate, timeRange = '1m' }: Materia
   const [proposalLoading, setProposalLoading] = useState(false)
   const [proposalError, setProposalError] = useState<string | null>(null)
 
+  const locationKeywords = [
+    'united states', 'usa', 'us',
+    'united kingdom', 'uk',
+    'canada',
+    'australia',
+    'saudi', 'saudi arabia',
+    'europe', 'european',
+    'germany', 'france', 'netherlands', 'spain', 'italy', 'sweden', 'norway', 'denmark', 'switzerland', 'poland', 'belgium', 'austria', 'ireland', 'portugal', 'finland'
+  ]
+
+  const parseBudgetUpper = (budget: string | null): number => {
+    if (!budget) return 0
+    const nums = (budget.match(/\d[\d,]*(?:\.\d+)?/g) || [])
+      .map(v => Number(v.replace(/,/g, '')))
+      .filter(v => !Number.isNaN(v))
+    if (nums.length === 0) return 0
+    return Math.max(...nums)
+  }
+
+  const isHighProfileJob = (job: ScrapedJob): boolean => {
+    const location = (job.client_location || '').toLowerCase()
+    const locationMatch = locationKeywords.some(keyword => location.includes(keyword))
+    const reviewScore = Number(job.client_reviews_score || 0)
+    const rating = Number(job.client_rating || 0)
+    const reviewMatch = reviewScore > 4 || rating > 4
+    const budgetUpper = parseBudgetUpper(job.budget_amount)
+    const budgetMatch = budgetUpper > 35
+    return locationMatch && reviewMatch && budgetMatch
+  }
+
   useEffect(() => {
     setCurrentPage(1)
-  }, [fromDate])
+  }, [fromDate, highProfileOnly])
 
   // Fetch jobs with pagination
   useEffect(() => {
@@ -85,7 +116,32 @@ export default function MaterialJobsList({ fromDate, timeRange = '1m' }: Materia
         
         const from = (currentPage - 1) * JOBS_PER_PAGE
         const to = from + JOBS_PER_PAGE - 1
-        
+
+        if (highProfileOnly) {
+          let highProfileQuery = supabase
+            .from('scraped_jobs')
+            .select('*')
+            .order('created_at', { ascending: false })
+            .limit(3000)
+
+          if (fromDate) {
+            highProfileQuery = highProfileQuery.gte('created_at', fromDate)
+          }
+
+          const { data, error } = await highProfileQuery
+
+          if (error) {
+            console.error('Error fetching high profile jobs:', error)
+            return
+          }
+
+          const allHighProfile = (data || []).filter(isHighProfileJob)
+          setTotalJobs(allHighProfile.length)
+          setTotalCompleteJobs(allHighProfile.length)
+          setJobs(allHighProfile.slice(from, to + 1))
+          return
+        }
+
         let query = supabase
           .from('scraped_jobs')
           .select('*', { count: 'exact' })
@@ -112,18 +168,20 @@ export default function MaterialJobsList({ fromDate, timeRange = '1m' }: Materia
         
       } catch (error) {
         console.error('Unexpected error:', error)
-        try {
-          const countUrl = fromDate
-            ? `/api/metrics/total-count?from_date=${encodeURIComponent(fromDate)}`
-            : '/api/metrics/total-count'
-          const countResponse = await fetch(countUrl)
-          const countResult = await countResponse.json()
-          if (countResult.total !== undefined) {
-            setTotalJobs(countResult.total)
-            setTotalCompleteJobs(countResult.complete || 0)
+        if (!highProfileOnly) {
+          try {
+            const countUrl = fromDate
+              ? `/api/metrics/total-count?from_date=${encodeURIComponent(fromDate)}`
+              : '/api/metrics/total-count'
+            const countResponse = await fetch(countUrl)
+            const countResult = await countResponse.json()
+            if (countResult.total !== undefined) {
+              setTotalJobs(countResult.total)
+              setTotalCompleteJobs(countResult.complete || 0)
+            }
+          } catch (countError) {
+            console.error('Error fetching range counts:', countError)
           }
-        } catch (countError) {
-          console.error('Error fetching range counts:', countError)
         }
       } finally {
         setLoading(false)
@@ -131,7 +189,7 @@ export default function MaterialJobsList({ fromDate, timeRange = '1m' }: Materia
     }
 
     fetchJobs()
-  }, [currentPage, fromDate])
+  }, [currentPage, fromDate, highProfileOnly])
 
   // Helper functions
   const parseSkills = (skillsData: any): string[] => {
@@ -319,7 +377,7 @@ export default function MaterialJobsList({ fromDate, timeRange = '1m' }: Materia
         <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', mb: 2 }}>
           <Box>
             <Typography variant="h4" gutterBottom sx={{ fontWeight: 700 }}>
-              Job Opportunities
+              {highProfileOnly ? 'High Profile Client Jobs' : 'Job Opportunities'}
             </Typography>
             <Typography variant="body1" color="text.secondary" gutterBottom>
               Showing {jobs.length} jobs ({timeRange.toUpperCase()} range) (Page {currentPage} of {Math.max(1, Math.ceil(totalJobs / JOBS_PER_PAGE))})

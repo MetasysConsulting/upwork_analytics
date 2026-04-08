@@ -13,7 +13,6 @@ import ClientSpendingChart from '@/components/analytics/ClientSpendingChart'
 import ClientHireRateChart from '@/components/analytics/ClientHireRateChart'
 import ConnectsRequiredChart from '@/components/analytics/ConnectsRequiredChart'
 import InterviewingRateChart from '@/components/analytics/InterviewingRateChart'
-import ClientHourlyRateChart from '@/components/analytics/ClientHourlyRateChart'
 import JobPostingHeatmap from '@/components/analytics/JobPostingHeatmap'
 
 // Import Material UI components
@@ -22,10 +21,10 @@ import MaterialJobsList from '@/components/MaterialJobsList'
 
 export default function Home() {
   type TimeRange = '1w' | '1m' | '3m' | '6m' | '1y'
-  const [activeTab, setActiveTab] = useState<'jobs' | 'premium-map' | 'jobs-over-time' | 'budget-analysis' | 'client-countries' | 'client-spending' | 'client-hire-rate' | 'client-hourly-rate' | 'connects-required' | 'interview-rate' | 'skills-demand' | 'posting-heatmap'>('jobs')
+  const [activeTab, setActiveTab] = useState<'jobs' | 'high-profile-clients' | 'premium-map' | 'jobs-over-time' | 'budget-analysis' | 'client-countries' | 'client-spending' | 'client-hire-rate' | 'connects-required' | 'interview-rate' | 'skills-demand' | 'posting-heatmap'>('jobs')
   const [totalJobCount, setTotalJobCount] = useState<number>(0)
   const [loading, setLoading] = useState(false)
-  const [timeRange, setTimeRange] = useState<TimeRange>('1m')
+  const [timeRange, setTimeRange] = useState<TimeRange>('3m')
 
   const getFromDateForRange = (range: TimeRange): string => {
     const now = new Date()
@@ -130,6 +129,12 @@ export default function Home() {
               <MaterialJobsList fromDate={fromDate} timeRange={timeRange} />
             </Box>
           )}
+
+          {activeTab === 'high-profile-clients' && (
+            <Box sx={{ width: '100%', maxWidth: '1400px' }}>
+              <MaterialJobsList fromDate={fromDate} timeRange={timeRange} highProfileOnly />
+            </Box>
+          )}
           
           {activeTab === 'jobs-over-time' && (
             <Box className="chart-container" sx={{ width: '100%', maxWidth: '1400px' }}>
@@ -164,12 +169,6 @@ export default function Home() {
           {activeTab === 'client-hire-rate' && (
             <Box className="chart-container">
               <ClientHireRateChart fromDate={fromDate} />
-            </Box>
-          )}
-          
-          {activeTab === 'client-hourly-rate' && (
-            <Box className="chart-container">
-              <ClientHourlyRateChart fromDate={fromDate} />
             </Box>
           )}
           

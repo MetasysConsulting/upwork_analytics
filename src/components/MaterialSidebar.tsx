@@ -95,6 +95,13 @@ export default function MaterialSidebar({
       badge: jobCount > 0 ? (jobCount > 99 ? '99+' : String(jobCount)) : undefined,
     },
     {
+      id: 'high-profile-clients',
+      label: 'High Profile Clients',
+      icon: StarBorderIcon,
+      color: '#22c55e',
+      description: 'Top-tier client opportunities',
+    },
+    {
       id: 'jobs-over-time',
       label: 'Market Trends',
       icon: TimelineIcon,
@@ -135,13 +142,6 @@ export default function MaterialSidebar({
       icon: TrendingUpIcon,
       color: '#f59e0b',
       description: 'Competitive rate analysis',
-    },
-    {
-      id: 'client-hourly-rate',
-      label: 'Hourly Insights',
-      icon: AttachMoneyIcon,
-      color: '#10b981',
-      description: 'Hourly rate trends',
     },
     {
       id: 'interview-rate',
