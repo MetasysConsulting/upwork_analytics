@@ -4,6 +4,22 @@
 -- Requires: parse_numeric() from supabase_metrics_setup.sql
 -- =====================================================================
 
+-- Returns the MAXIMUM numeric value in a string, e.g. "$20-$60" → 60
+-- This matches the parseBudgetMax() JS helper used in the API fallback.
+CREATE OR REPLACE FUNCTION public.parse_budget_max(budget TEXT)
+RETURNS NUMERIC
+LANGUAGE sql
+IMMUTABLE
+AS $$
+  SELECT COALESCE(
+    (
+      SELECT MAX(CAST(REGEXP_REPLACE(m[1], ',', '', 'g') AS NUMERIC))
+      FROM REGEXP_MATCHES(COALESCE(budget, ''), '(\d[\d,]*(?:\.\d+)?)', 'g') AS m
+    ),
+    0
+  );
+$$;
+
 -- Location helper to avoid repetition
 -- Returns TRUE if client_location matches any premium market
 CREATE OR REPLACE FUNCTION public.is_premium_market(loc TEXT)
@@ -56,7 +72,7 @@ AS $$
       COALESCE(client_reviews_score, 0) > 4
       OR COALESCE(client_rating, 0) > 4
     )
-    AND public.parse_numeric(budget_amount) > 35
+    AND public.parse_budget_max(budget_amount) > 35
   ORDER BY created_at DESC
   LIMIT  page_limit
   OFFSET page_offset;
@@ -79,10 +95,11 @@ AS $$
       COALESCE(client_reviews_score, 0) > 4
       OR COALESCE(client_rating, 0) > 4
     )
-    AND public.parse_numeric(budget_amount) > 35;
+    AND public.parse_budget_max(budget_amount) > 35;
 $$;
 
 -- Grant access to both anon (for the Kinde-auth flow) and authenticated
-GRANT EXECUTE ON FUNCTION public.is_premium_market(TEXT)             TO anon, authenticated;
+GRANT EXECUTE ON FUNCTION public.parse_budget_max(TEXT)                       TO anon, authenticated;
+GRANT EXECUTE ON FUNCTION public.is_premium_market(TEXT)                      TO anon, authenticated;
 GRANT EXECUTE ON FUNCTION public.get_high_profile_jobs(TIMESTAMPTZ, INT, INT) TO anon, authenticated;
-GRANT EXECUTE ON FUNCTION public.count_high_profile_jobs(TIMESTAMPTZ) TO anon, authenticated;
+GRANT EXECUTE ON FUNCTION public.count_high_profile_jobs(TIMESTAMPTZ)         TO anon, authenticated;

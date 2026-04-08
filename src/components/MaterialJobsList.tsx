@@ -67,6 +67,7 @@ export default function MaterialJobsList({ fromDate, timeRange = '3m', highProfi
   const [currentPage, setCurrentPage] = useState(1)
   const [totalJobs, setTotalJobs] = useState<number>(0)
   const [totalCompleteJobs, setTotalCompleteJobs] = useState<number>(0)
+  const [fetchError, setFetchError] = useState<string | null>(null)
 
   const [proposalModalOpen, setProposalModalOpen] = useState(false)
   const [proposal, setProposal] = useState<string | null>(null)
@@ -75,19 +76,29 @@ export default function MaterialJobsList({ fromDate, timeRange = '3m', highProfi
 
   useEffect(() => {
     setCurrentPage(1)
+    setFetchError(null)
   }, [fromDate, highProfileOnly])
 
-  // Fetch jobs — high-profile path uses backend RPC via API route
+  // Fetch jobs — high-profile path uses backend API route (RPC with JS fallback)
   useEffect(() => {
     async function fetchJobs() {
       try {
         setLoading(true)
+        setFetchError(null)
 
         if (highProfileOnly) {
           const params = new URLSearchParams({ page: String(currentPage) })
           if (fromDate) params.set('from_date', fromDate)
           const response = await fetch(`/api/metrics/high-profile-jobs?${params}`)
           const result = await response.json()
+
+          if (!response.ok) {
+            setFetchError(result.error ?? 'Failed to load high-profile jobs')
+            setJobs([])
+            setTotalJobs(0)
+            return
+          }
+
           setJobs(result.data ?? [])
           setTotalJobs(result.total ?? 0)
           setTotalCompleteJobs(result.total ?? 0)
@@ -108,13 +119,14 @@ export default function MaterialJobsList({ fromDate, timeRange = '3m', highProfi
         const { data, error, count } = await query
 
         if (error) {
-          console.error('Error fetching jobs:', error)
+          setFetchError('Failed to load jobs. Please try again.')
           return
         }
 
         setJobs(data ?? [])
         if (count !== null) setTotalJobs(count)
       } catch (err) {
+        setFetchError('Unexpected error loading jobs.')
         console.error('Unexpected error fetching jobs:', err)
       } finally {
         setLoading(false)
@@ -398,8 +410,18 @@ export default function MaterialJobsList({ fromDate, timeRange = '3m', highProfi
         </Box>
       </Box>
 
+      {/* Error state */}
+      {fetchError && (
+        <Alert severity="error" sx={{ borderRadius: 2, mb: 3 }}>
+          <Typography variant="body1" sx={{ fontWeight: 600 }}>
+            Failed to load jobs
+          </Typography>
+          <Typography variant="body2">{fetchError}</Typography>
+        </Alert>
+      )}
+
       {/* Job Cards */}
-      {filteredJobs.length === 0 ? (
+      {!fetchError && filteredJobs.length === 0 ? (
         <Alert severity="info" sx={{ borderRadius: 2 }}>
           <Typography variant="body1">
             No jobs found matching your criteria. Try adjusting your search or filters.
